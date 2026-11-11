@@ -9,7 +9,7 @@ Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapac
 - [2. Güç ve Voltaj Dağıtım Mimarisi (Kritik Uyarılar)](#2-güç-ve-voltaj-dağıtım-mimarisi-kritik-uyarılar)
 - [3. Ana Pin Bağlantı Tablosu (Donanım & Yazılım Referansı)](#3-ana-pin-bağlantı-tablosu-donanım--yazılım-referansı)
 - [4. Modül Bazlı Fiziksel Montaj ve Kablolama Rehberi](#4-modül-bazlı-fiziksel-montaj-ve-kablolama-rehberi)
-- [5. Yazılım Ekibi İçin Kritik Uygulama ve Algoritma Notları](#5-yazılım-ekibi-için-kritik-uygulama-ve-algoritma-notları)
+- [5. Yazılım Ekibi için Kritik Uygulama ve Algoritma Notları](#5-yazılım-ekibi-için-kritik-uygulama-ve-algoritma-notları)
 
 ## 🎯 Projenin Amacı ve Çalışma Senaryosu
 
@@ -161,7 +161,7 @@ Aracı şasi üzerine toplarken her modül için izlemeniz gereken bağlantı ad
 
 ---
 
-## 5. Yazılım Ekibi İçin Kritik Uygulama ve Algoritma Notları
+## 5. Yazılım Ekibi için Kritik Uygulama ve Algoritma Notları
 
 Yazılım ekibinin kodu geliştirirken donanımla tam uyumlu çalışması için dikkat etmesi gereken teknik detaylar şunlardır:
 
