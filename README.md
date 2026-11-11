@@ -2,7 +2,14 @@
 
 Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapacak ekip üyeleri için **adım adım kablolama rehberi**, yazılım ekibi için ise **pin haritası ve algoritma referansı** olarak hazırlanmıştır. 
 
----
+## 📑 İçindekiler
+- [🎯 Projenin Amacı ve Çalışma Senaryosu](#-projenin-amacı-ve-çalışma-senaryosu)
+- [📦 Kullanılan Parçalar (Malzeme Listesi)](#-kullanılan-parçalar-malzeme-listesi)
+- [1. Sistem Mimarisi ve Donanım Görev Dağılımı](#1-sistem-mimarisi-ve-donanım-görev-dağılımı)
+- [2. Güç ve Voltaj Dağıtım Mimarisi (Kritik Uyarılar)](#2-güç-ve-voltaj-dağıtım-mimarisi-kritik-uyarılar)
+- [3. Ana Pin Bağlantı Tablosu (Donanım & Yazılım Referansı)](#3-ana-pin-bağlantı-tablosu-donanım--yazılım-referansı)
+- [4. Modül Bazlı Fiziksel Montaj ve Kablolama Rehberi](#4-modül-bazlı-fiziksel-montaj-ve-kablolama-rehberi)
+- [5. Yazılım Ekibi İçin Kritik Uygulama ve Algoritma Notları](#5-yazılım-ekibi-için-kritik-uygulama-ve-algoritma-notları)
 
 ## 🎯 Projenin Amacı ve Çalışma Senaryosu
 
@@ -11,8 +18,6 @@ Robotumuz, motor sürücü aracılığıyla tekerleklere güç vererek labirent 
 2. **Engel Algılama ve Durma:** Ön, sağ ve soldaki ultrasonik mesafe sensörleri ile çevresini sürekli tarar. Önüne bir engel (duvar) çıktığında mesafeye bağlı olarak önce kademeli şekilde yavaşlar, ardından tam duruş yapar.
 3. **Yön Kararı ve Dönüş:** Sağ ve sol mesafe sensörlerinden gelen verilere göre açık olan yolu seçer. Jiroskop (MPU6050) verisini referans alarak tam açılı ($90^\circ$ veya $180^\circ$) dönüş yapar ve yeni yönde ilerlemeye devam eder.
 4. **Kablosuz Telemetri:** Tüm bu süreç boyunca sensörlerden okunan veriler ve aracın anlık karar durumu Bluetooth modülü (HC-05) üzerinden gerçek zamanlı olarak ana bilgisayara aktarılır.
-
----
 
 ## 📦 Kullanılan Parçalar (Malzeme Listesi)
 
@@ -25,9 +30,7 @@ Robotumuz, motor sürücü aracılığıyla tekerleklere güç vererek labirent 
 * **HC-05 Bluetooth Modülü** $\times 1$
 * **1.5V 4 Slot AA Pil Yuvası** $\times 2$ *(Toplam 8 Pil Yuvası)*
 * **1.5V AA Pil** $\times 8$
-* **1k$\Omega$ ve 2k$\Omega$ Direnç** *(HC-05 RXD gerilim bölücü devresi için)*
-
----
+* **1k $\Omega$ ve 2k $\Omega$ Direnç** *(HC-05 RXD gerilim bölücü devresi için)*
 
 ## 1. Sistem Mimarisi ve Donanım Görev Dağılımı
 
@@ -41,7 +44,7 @@ Tüm sensörlerden gelen verileri okur, duvar takip ve dönüş kararlarını ve
 ### ⚡ L298N Motor Sürücü – Güç ve Yön Aktüatörü
 Arduino'nun dijital pinleri motorları çalıştırmak için gereken yüksek akımı doğrudan veremez (Arduino pinleri maksimum $20\text{ mA}-40\text{ mA}$ verirken motorlar yüzlerce miliamper çeker). L298N, pil grubundan aldığı yüksek gücü kullanarak Arduino'dan gelen düşük güçlü **PWM** sinyalleriyle motorları kademeli olarak hızlandırır veya yavaşlatır. Lojik yön pinleriyle (`IN1`–`IN4`) aracın ileri, geri, olduğu yerde eksen dönüşü (tank dönüşü) ve ani elektronik frenleme hareketlerini yaptırır.
 
-![L298N Motor Sürücü](<images/L298N - Motor  Driver.jpg>)
+![L298N Motor Sürücü](<images/L298N - Motor  Driver.png>)
 
 ### ⚙️ Sarı Redüktörlü TT Motorlar (2 Adet) – Tahrik Sistemi
 $1:48$ dişli redüksiyon oranıyla tekerleklere tork ve hareket sağlar.
@@ -51,7 +54,7 @@ $1:48$ dişli redüksiyon oranıyla tekerleklere tork ve hareket sağlar.
 ### ⏱️ H2010 Optokuplör Hız Sensörleri (2 Adet) – Odometri ve Hız Eşitleme
 Üretim toleransları sebebiyle iki DC motora aynı voltaj verilse bile tekerlekler birebir aynı hızda dönmez ve araç bir tarafa çeker. H2010 üzerindeki kızılötesi yarık ve LM393 karşılaştırıcı entegre, motor miline bağlı delikli enkoder diskinin dönüşünü dijital sinyallere (`D0`) çevirir. Bu sayede sağ ve sol tekerleklerin anlık dönüş hızı (RPM) ve katettiği mesafe ölçülerek iki tekerleğin hızı yazılımsal olarak eşitlenir.
 
-![H2010 Hız Sensörü Şeması](<images/H2010 - Hız Sensoru.jpg>)
+![H2010 Hız Sensörü Şeması](<images/H2010 - Hız Sensoru.png>)
 
 ### 🧭 MPU6050 Jiroskop ve İvmeölçer – Yönelim (Yaw) ve Hassas Dönüş Kontrolü
 Sadece önüne engel çıktığında $90^\circ$ veya $180^\circ$ köşe dönüşlerini hassas ölçmekle kalmaz; araç düz koridorda ilerlerken zemin kayması (patinaj) nedeniyle tekerlek enkoderlerinin fark edemediği açısal sapmaları (Z ekseni dönüş hızı) anlık yakalayarak aracın düz bir çizgide kalmasını sağlar.
@@ -61,7 +64,7 @@ Sadece önüne engel çıktığında $90^\circ$ veya $180^\circ$ köşe dönüş
 ### 📏 HC-SR04 Ultrasonik Mesafe Sensörleri (3 Adet) – Çevre Algılama ve Koridor Ortalama
 Ses dalgaları gönderip yankı süresini ölçerek mesafeyi hesaplar. Ön sensör engele yaklaşırken kademeli yavaşlama ve durma mesafesini belirlerken, sağ ve sol sensörler hem açık koridor (dönüş yönü) kararını verir hem de düz sürüş esnasında aracın sağ ve sol duvarlara eşit uzaklıkta (koridor ortasında) kalmasını sağlar.
 
-![HC-SR04 Ultrasonik Mesafe Sensörü](<images/HC-SR04 - Ultrasonik Mesafe Sensörü.jpg>)
+![HC-SR04 Ultrasonik Mesafe Sensörü](<images/HC-SR04 - Ultrasonik Mesafe Sensörü.png>)
 
 ### 📡 HC-05 Bluetooth Modülü – Kablosuz Telemetri ve Komut Hattı
 Araç üzerindeki sensör verilerini, anlık hızı, yönelim açısını ve robotun karar durumunu UART seri haberleşme protokolü üzerinden gerçek zamanlı olarak ana makineye (PC) aktarır.
@@ -88,7 +91,7 @@ Sistemde toplam 8 adet $1.5\text{ V}$ AA pil (iki adet 4'lü pil yuvası) kullan
 ### ⚠️ HC-05 RXD Pini İçin 3.3V Gerilim Bölücü (Zorunlu)
 * HC-05 modülünün **VCC** pini $5\text{ V}$ ile çalışır ancak veri alma pini olan **RXD** lojik olarak **$3.3\text{ V}$** seviyesindedir.
 * Arduino'nun $5\text{ V}$ çıkış veren TX pinini (`D12`) doğrudan HC-05 `RXD` pinine bağlamak modülü yakabilir. Araya **$1\text{ k}\Omega$ ve $2\text{ k}\Omega$** dirençlerle bir gerilim bölücü kurulmalıdır:
-  * `Arduino D12 (TX)` $\rightarrow$ `$1\text{ k}\Omega$ Direnç` $\rightarrow$ `HC-05 RXD Pini` $\rightarrow$ `$2\text{ k}\Omega$ Direnç` $\rightarrow$ `GND`
+  * Arduino D12 (TX) $\rightarrow$ $1\text{ k}\Omega$ Direnç $\rightarrow$ HC-05 RXD Pini $\rightarrow$ $2\text{ k}\Omega$ Direnç $\rightarrow$ GND
 
 ### ⏚ Ortak Toprak (Common GND) Kuralı
 * Pil yuvasının eksi ($-$) kutbu, L298N üzerindeki **Power GND** klemensi, Arduino Uno'nun **GND** pinleri ve tüm sensörlerin **GND** bacakları birbirine bağlanarak ortaklanmalıdır. Ortak toprak yapılmazsa sensör sinyalleri okunamaz.
@@ -154,7 +157,7 @@ Aracı şasi üzerine toplarken her modül için izlemeniz gereken bağlantı ad
 * **🚨 Görsel Uyarısı:** `HC-05 - Bluetooth.jpg` görselinin alt kısmındaki kırmızı oklar hatalı çizilmiştir (`Vcc` oku `RXD`'ye, `GND` oku `TXD`'ye gösterilmiştir). Bağlantıyı yaparken kırmızı okları değil, **mavi kartın (PCB) üzerindeki beyaz yazıları (`State`, `RXD`, `TXD`, `GND`, `VCC`, `Key`)** baz alın!
 * Kart üzerindeki **VCC** pinini $5\text{ V}$ hattına, **GND** pinini ortak toprağa bağlayın.
 * Kart üzerindeki **TXD** pinini doğrudan Arduino **D11** pinine bağlayın.
-* Arduino **D12** pininden çıkan sinyali $1\text{ k}\Omega$–$2\text{ k}\Omega$ gerilim bölücüden geçirerek kart üzerindeki **RXD** pinine bağlayın; **STATE** ve **KEY** pinlerini boş bırakın.
+* Arduino **D12** pininden çıkan sinyali $1\text{ k} \Omega$ – $2\text{ k} \Omega$ gerilim bölücüden geçirerek kart üzerindeki **RXD** pinine bağlayın; **STATE** ve **KEY** pinlerini boş bırakın.
 
 ---
 
