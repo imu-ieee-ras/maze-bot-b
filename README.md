@@ -2,8 +2,6 @@
 
 Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapacak ekip üyeleri için **adım adım kablolama rehberi**, yazılım ekibi için ise **pin haritası ve algoritma referansı** olarak hazırlanmıştır. 
 
-> **GitHub Görsel Notu:** Bu dokümandaki şemaların GitHub üzerinde otomatik görünmesi için ekteki görsel dosyalarını (`Arduino Uno R3 SMD.png`, `L298N - Motor  Driver.jpg` vb.) bu `README.md` dosyası ile aynı dizine (ana klasöre) yüklemeniz yeterlidir.
-
 ---
 
 ## 🎯 Projenin Amacı ve Çalışma Senaryosu
