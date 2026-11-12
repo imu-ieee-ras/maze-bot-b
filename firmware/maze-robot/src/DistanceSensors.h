@@ -1,0 +1,22 @@
+
+#pragma once
+
+#include <Arduino.h>
+
+namespace DistanceSensors {
+
+struct Distances {
+    float front;
+    float left;
+    float right;
+};
+
+void begin();
+bool update();
+void requestScan();
+Distances readings();
+unsigned long frontAgeMs();
+bool sidesFresh(unsigned long maxAgeMs);
+
+}
+
