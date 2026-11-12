@@ -66,3 +66,14 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# PlatformIO generated files
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Python environments
+.venv/
+
+# Local editor files
+.vscode/
