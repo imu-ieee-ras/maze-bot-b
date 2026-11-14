@@ -1,6 +1,7 @@
 
 #include "Gyro.h"
 #include "Config.h"
+#include "Logger.h"
 #include <Wire.h>
 
 namespace {
@@ -81,7 +82,7 @@ void begin() {
         !writeReg(0x6B, 0x00) ||
         !writeReg(0x1B, 0x00)) {
 
-        Serial.println(F(
+        Logger::boot(F(
             "WARN: MPU6050 missing/config failed; AUTO disabled"
         ));
         return;
@@ -90,8 +91,8 @@ void begin() {
     ready = true;
     delay(Config::GYRO_STARTUP_DELAY_MS);
 
-    Serial.println(F(
-        "Gyro calibration: keep robot STILL"
+    Logger::boot(F(
+        "MPU6050: bias calibration; keep robot STILL"
     ));
 
     long sum = 0;
@@ -113,7 +114,7 @@ void begin() {
     if (ok < Config::GYRO_CALIBRATION_MIN_SAMPLES || runtimeFault) {
         ready = false;
 
-        Serial.println(F(
+        Logger::boot(F(
             "WARN: MPU6050 calibration failed"
         ));
         return;
@@ -121,7 +122,7 @@ void begin() {
 
     biasZ = static_cast<float>(sum) / ok;
 
-    Serial.println(F("MPU6050 ready"));
+    Logger::boot(F("MPU6050: I2C identity/read verified; bias computed"));
 }
 
 bool available() {

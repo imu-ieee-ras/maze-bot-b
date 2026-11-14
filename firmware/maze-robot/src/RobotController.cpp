@@ -8,6 +8,7 @@
 #include "MotorController.h"
 #include <math.h>
 #include "SafetyRules.h"
+#include "Logger.h"
 
 namespace {
 
@@ -663,19 +664,28 @@ namespace RobotController {
 
 void begin() {
     Communication::begin();
+    const unsigned long serialStartedMs = millis();
     MotorController::begin();
+    // Configure stopped motor outputs before any potentially blocking boot log.
+    const unsigned long motorsStartedMs = millis();
+    Logger::boot(F("USB Serial: UART0 configured; USB bridge unverified"), serialStartedMs);
+    Logger::boot(F("Motor: digital I/O + PWM configured; motion unverified"), motorsStartedMs);
 
     DistanceSensors::begin();
+    Logger::boot(F("HC-SR04: digital I/O configured; echoes unverified"));
     Encoder::begin();
+    Logger::boot(F("Encoders: INT0/INT1 interrupts attached; pulses unverified"));
+    Logger::boot(F("MPU6050: I2C init; identity/calibration pending"));
     Gyro::begin();
 
-    Serial.println(F(
+    Logger::boot(F(
         "Maze Robot: F/B/L/R move, S/M stop, P data, A auto, X clear fault"
     ));
 
-    Serial.println(F(
+    Logger::boot(F(
         "Manual commands expire after 1.5s without renewal."
     ));
+    Logger::boot(F("Setup complete; physical motion checks still required"));
 }
 
 void update() {

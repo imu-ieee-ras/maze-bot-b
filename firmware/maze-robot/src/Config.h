@@ -28,6 +28,11 @@ constexpr uint8_t RIGHT_ECHO = 8;
 }
 
 namespace Config {
+// Boot messages are setup-only; clock output is dropped when UART TX is busy.
+constexpr bool BOOT_LOG_ENABLED = true;
+constexpr bool CLOCK_LOG_ENABLED = true;
+constexpr unsigned long CLOCK_LOG_INTERVAL_MS = 5000UL;
+
 // USB serial output: timing and decimal precision (existing text format).
 constexpr uint32_t SERIAL_BAUD = 115200UL;
 constexpr unsigned long PRINT_INTERVAL_MS = 750UL;
