@@ -33,9 +33,14 @@ constexpr bool BOOT_LOG_ENABLED = true;
 constexpr bool CLOCK_LOG_ENABLED = true;
 constexpr unsigned long CLOCK_LOG_INTERVAL_MS = 5000UL;
 
-// USB serial output: timing and decimal precision (existing text format).
+// Cached real-time telemetry; incomplete frames expire rather than queue up.
+constexpr bool TELEMETRY_ENABLED = true;
+constexpr unsigned long TELEMETRY_INTERVAL_MS = 1000UL;
+constexpr unsigned long TELEMETRY_FRAME_MAX_AGE_MS = 250UL;
+constexpr unsigned long TELEMETRY_GYRO_MAX_AGE_MS = 500UL;
+
+// USB serial output: request rate limit and decimal precision.
 constexpr uint32_t SERIAL_BAUD = 115200UL;
-constexpr unsigned long PRINT_INTERVAL_MS = 750UL;
 constexpr unsigned long MIN_PRINT_INTERVAL_MS = 500UL;
 constexpr int SERIAL_DISTANCE_DECIMALS = 1;
 constexpr int SERIAL_GYRO_DECIMALS = 2;

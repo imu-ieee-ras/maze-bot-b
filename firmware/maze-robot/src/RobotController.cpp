@@ -9,12 +9,12 @@
 #include <math.h>
 #include "SafetyRules.h"
 #include "Logger.h"
+#include "Telemetry.h"
 
 namespace {
 
 bool autoMode = false;
 bool faultLatched = false;
-bool printRequested = false;
 bool encoderSessionActive = false;
 bool pendingDrive = false;
 bool stopLatched = false;
@@ -23,7 +23,6 @@ MotorController::Motion pendingMotion =
     MotorController::STOPPED;
 
 unsigned long transitionStartMs = 0;
-unsigned long lastPrintMs = 0;
 unsigned long lastManualMs = 0;
 unsigned long lastGyroCheckMs = 0;
 unsigned long lastBalanceMs = 0;
@@ -37,13 +36,13 @@ MotorController::Motion trackedMotion =
 Encoder::Counts previousTicks = {0, 0};
 Encoder::Counts balanceTicks = {0, 0};
 
-enum Fault {
-    GYRO_FAULT,
-    ENCODER_FAULT,
-    FRONT_FAULT,
-    SIDE_FAULT,
-    TURN_FAULT
-};
+using RobotController::Fault;
+using RobotController::GYRO_FAULT;
+using RobotController::ENCODER_FAULT;
+using RobotController::FRONT_FAULT;
+using RobotController::SIDE_FAULT;
+using RobotController::TURN_FAULT;
+Fault lastFault = RobotController::NO_FAULT;
 
 // endSession=false preserves encoder timers
 // during a short direction change.
@@ -90,8 +89,11 @@ void trip(Fault reason) {
     safeStop();
     autoMode = false;
     faultLatched = true;
+    lastFault = reason;
 
     switch (reason) {
+        case RobotController::NO_FAULT: // Status-only value; never passed by trip callers.
+            break;
         case GYRO_FAULT:
             Serial.println(F("FAULT: gyro/I2C read failed"));
             break;
@@ -327,6 +329,7 @@ bool turnAngle(float degrees) {
             return true;
         }
 
+        Telemetry::update(); // Read-only observation; no additional sensor acquisition.
         delay(Config::TURN_POLL_DELAY_MS);
     }
 }
@@ -523,7 +526,7 @@ void handle(char command) {
     }
 
     if (command == 'P') {
-        printRequested = true;
+        Telemetry::request();
         return;
     }
 
@@ -625,7 +628,7 @@ void processCommands() {
         }
 
         if (command == 'P') {
-            printRequested = true;
+            Telemetry::request();
 
         } else if (command == 'X') {
             clearRequested = true;
@@ -661,6 +664,10 @@ void processCommands() {
 } // anonymous namespace
 
 namespace RobotController {
+Status status() {
+    return {autoMode, stopLatched, pendingDrive, faultLatched ? lastFault : NO_FAULT};
+}
+
 
 void begin() {
     Communication::begin();
@@ -723,14 +730,6 @@ void update() {
     if (faultLatched) {
         MotorController::stop();
 
-        if (printRequested &&
-            millis() - lastPrintMs >= Config::MIN_PRINT_INTERVAL_MS) {
-
-            lastPrintMs = millis();
-            Communication::printReadings(false);
-            printRequested = false;
-        }
-
         return;
     }
 
@@ -766,25 +765,6 @@ void update() {
     }
 
     balanceForward();
-
-    if (printRequested ||
-        millis() - lastPrintMs >=
-            Config::PRINT_INTERVAL_MS) {
-
-        if (millis() - lastPrintMs >= Config::MIN_PRINT_INTERVAL_MS) {
-            lastPrintMs = millis();
-
-            Communication::printReadings(
-                autoMode
-            );
-
-            // Telemetry itself reads the gyro.
-            // Stop immediately if that read fails.
-            checkGyroFault();
-        }
-
-        printRequested = false;
-    }
 }
 
 }

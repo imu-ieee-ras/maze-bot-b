@@ -15,4 +15,6 @@ void turnLeft();
 void turnRight();
 Motion motion();
 int forwardPWM();
+uint8_t appliedLeftPWM();
+uint8_t appliedRightPWM();
 }

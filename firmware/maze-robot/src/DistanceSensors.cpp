@@ -111,6 +111,9 @@ unsigned long frontAgeMs() {
         : ~0UL;
 }
 
+unsigned long leftAgeMs() { return haveLeft ? millis() - lastLeftMs : ~0UL; }
+unsigned long rightAgeMs() { return haveRight ? millis() - lastRightMs : ~0UL; }
+
 bool sidesFresh(unsigned long maxAgeMs) {
     return haveLeft && haveRight &&
            millis() - lastLeftMs <= maxAgeMs &&

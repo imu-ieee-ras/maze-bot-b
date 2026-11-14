@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 namespace Clock {
+inline uint32_t elapsedMs(uint32_t now, uint32_t since) { return now - since; }
+
 struct Sample {
     uint64_t uptimeMs;
     uint32_t windowMs;

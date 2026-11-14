@@ -9,4 +9,6 @@ void boot(const __FlashStringHelper *message, unsigned long timestamp = millis()
 void begin();
 // Call after RobotController::update(), including its early-return paths.
 void update();
+// Shared non-blocking whole-line output for Clock and Telemetry.
+bool tryWrite(const char *line, size_t length);
 }

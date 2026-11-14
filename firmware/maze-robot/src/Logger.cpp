@@ -1,5 +1,6 @@
 #include "Logger.h"
 #include "Clock.h"
+#include "LogOutput.h"
 #include "Config.h"
 #include <stdio.h>
 #include <avr/pgmspace.h>
@@ -13,6 +14,10 @@ static_assert(Config::CLOCK_LOG_INTERVAL_MS > 0, "Clock log interval must be pos
 }
 
 namespace Logger {
+bool tryWrite(const char *line, size_t length) {
+    return LogOutput::tryWrite(Serial, line, length);
+}
+
 void boot(const __FlashStringHelper *message, unsigned long timestamp) {
     if (!Config::BOOT_LOG_ENABLED) return;
     Serial.print('[');
@@ -42,9 +47,8 @@ void update() {
         static_cast<unsigned long>(sample.milliHz % 1000UL)
     );
     // Only the main thread writes Serial; its ISR only frees TX space.
-    if (length > 0 && length < static_cast<int>(sizeof(line)) &&
-        Serial.availableForWrite() >= length) {
-        Serial.write(reinterpret_cast<const uint8_t *>(line), length);
+    if (length > 0 && length < static_cast<int>(sizeof(line))) {
+        tryWrite(line, length);
     }
 }
 }

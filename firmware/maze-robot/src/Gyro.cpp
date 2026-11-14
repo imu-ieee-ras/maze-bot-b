@@ -8,6 +8,9 @@ namespace {
 bool ready = false;
 bool runtimeFault = false;
 float biasZ = 0.0f;
+float lastRate = 0.0f;
+unsigned long lastRateMs = 0;
+bool haveRate = false;
 
 bool writeReg(uint8_t address, uint8_t value) {
     Wire.clearWireTimeoutFlag();
@@ -74,6 +77,7 @@ void begin() {
 
     ready = false;
     runtimeFault = false;
+    haveRate = false;
 
     uint8_t who[1];
 
@@ -133,12 +137,19 @@ bool faulted() {
     return runtimeFault;
 }
 
+CachedRate cachedYawRate() {
+    return {lastRate, haveRate ? millis() - lastRateMs : ~0UL, haveRate && available()};
+}
+
 bool yawRateDps(float &value) {
     int16_t z;
 
     if (!readRawZ(z)) return false;
 
     value = (static_cast<float>(z) - biasZ) / 131.0f;
+    lastRate = value;
+    lastRateMs = millis();
+    haveRate = true;
 
     return true;
 }

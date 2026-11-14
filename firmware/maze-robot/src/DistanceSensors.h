@@ -16,6 +16,8 @@ bool update();
 void requestScan();
 Distances readings();
 unsigned long frontAgeMs();
+unsigned long leftAgeMs();
+unsigned long rightAgeMs();
 bool sidesFresh(unsigned long maxAgeMs);
 
 }

@@ -4,12 +4,14 @@
 namespace {
 MotorController::Motion currentMotion = MotorController::STOPPED;
 int currentForwardPWM = Config::CRUISE_PWM;
+uint8_t leftAppliedPWM = 0;
+uint8_t rightAppliedPWM = 0;
 
 int limitedPWM(int value) {
   return constrain(value, 0, Config::MAX_DRIVE_PWM);
 }
 
-void setSingleMotor(int signedPWM, uint8_t inA, uint8_t inB,
+uint8_t setSingleMotor(int signedPWM, uint8_t inA, uint8_t inB,
                     uint8_t enablePin, bool reverse) {
   if (reverse) signedPWM = -signedPWM;
   const int speedValue = limitedPWM(abs(signedPWM));
@@ -18,11 +20,12 @@ void setSingleMotor(int signedPWM, uint8_t inA, uint8_t inB,
     analogWrite(enablePin, 0);
     digitalWrite(inA, LOW);
     digitalWrite(inB, LOW);
-    return;
+    return 0;
   }
   digitalWrite(inA, signedPWM > 0 ? HIGH : LOW);
   digitalWrite(inB, signedPWM > 0 ? LOW : HIGH);
   analogWrite(enablePin, speedValue);
+  return static_cast<uint8_t>(speedValue);
 }
 }
 
@@ -38,9 +41,9 @@ void begin() {
 }
 
 void setSpeeds(int leftPWM, int rightPWM) {
-  setSingleMotor(leftPWM, Pins::LEFT_IN1, Pins::LEFT_IN2,
+  leftAppliedPWM = setSingleMotor(leftPWM, Pins::LEFT_IN1, Pins::LEFT_IN2,
                  Pins::LEFT_EN, Config::REVERSE_LEFT_MOTOR);
-  setSingleMotor(rightPWM, Pins::RIGHT_IN3, Pins::RIGHT_IN4,
+  rightAppliedPWM = setSingleMotor(rightPWM, Pins::RIGHT_IN3, Pins::RIGHT_IN4,
                  Pins::RIGHT_EN, Config::REVERSE_RIGHT_MOTOR);
 }
 
@@ -57,6 +60,7 @@ void brake() {
   digitalWrite(Pins::RIGHT_IN4, HIGH);
   analogWrite(Pins::LEFT_EN, 255);
   analogWrite(Pins::RIGHT_EN, 255);
+  leftAppliedPWM = rightAppliedPWM = 255;
   delay(Config::BRAKE_DURATION_MS);
   stop();
 }
@@ -84,4 +88,6 @@ void turnRight() {
 
 Motion motion() { return currentMotion; }
 int forwardPWM() { return currentForwardPWM; }
+uint8_t appliedLeftPWM() { return leftAppliedPWM; }
+uint8_t appliedRightPWM() { return rightAppliedPWM; }
 }
