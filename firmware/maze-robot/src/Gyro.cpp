@@ -1,12 +1,16 @@
 
 #include "Gyro.h"
 #include "Config.h"
+#include "Logger.h"
 #include <Wire.h>
 
 namespace {
 bool ready = false;
 bool runtimeFault = false;
 float biasZ = 0.0f;
+float lastRate = 0.0f;
+unsigned long lastRateMs = 0;
+bool haveRate = false;
 
 bool writeReg(uint8_t address, uint8_t value) {
     Wire.clearWireTimeoutFlag();
@@ -73,6 +77,7 @@ void begin() {
 
     ready = false;
     runtimeFault = false;
+    haveRate = false;
 
     uint8_t who[1];
 
@@ -81,23 +86,23 @@ void begin() {
         !writeReg(0x6B, 0x00) ||
         !writeReg(0x1B, 0x00)) {
 
-        Serial.println(F(
+        Logger::boot(F(
             "WARN: MPU6050 missing/config failed; AUTO disabled"
         ));
         return;
     }
 
     ready = true;
-    delay(100);
+    delay(Config::GYRO_STARTUP_DELAY_MS);
 
-    Serial.println(F(
-        "Gyro calibration: keep robot STILL"
+    Logger::boot(F(
+        "MPU6050: bias calibration; keep robot STILL"
     ));
 
     long sum = 0;
     uint16_t ok = 0;
 
-    for (uint16_t i = 0; i < 200; ++i) {
+    for (uint16_t i = 0; i < Config::GYRO_CALIBRATION_SAMPLES; ++i) {
         int16_t z;
 
         if (readRawZ(z)) {
@@ -107,13 +112,13 @@ void begin() {
 
         if (runtimeFault) break;
 
-        delay(5);
+        delay(Config::GYRO_CALIBRATION_SAMPLE_DELAY_MS);
     }
 
-    if (ok < 150 || runtimeFault) {
+    if (ok < Config::GYRO_CALIBRATION_MIN_SAMPLES || runtimeFault) {
         ready = false;
 
-        Serial.println(F(
+        Logger::boot(F(
             "WARN: MPU6050 calibration failed"
         ));
         return;
@@ -121,7 +126,7 @@ void begin() {
 
     biasZ = static_cast<float>(sum) / ok;
 
-    Serial.println(F("MPU6050 ready"));
+    Logger::boot(F("MPU6050: I2C identity/read verified; bias computed"));
 }
 
 bool available() {
@@ -132,12 +137,19 @@ bool faulted() {
     return runtimeFault;
 }
 
+CachedRate cachedYawRate() {
+    return {lastRate, haveRate ? millis() - lastRateMs : ~0UL, haveRate && available()};
+}
+
 bool yawRateDps(float &value) {
     int16_t z;
 
     if (!readRawZ(z)) return false;
 
     value = (static_cast<float>(z) - biasZ) / 131.0f;
+    lastRate = value;
+    lastRateMs = millis();
+    haveRate = true;
 
     return true;
 }

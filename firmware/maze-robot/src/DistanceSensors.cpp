@@ -30,9 +30,9 @@ float readCm(uint8_t trig, uint8_t echo) {
 
     if (duration == 0) return -1.0f;
 
-    const float cm = duration / 58.0f;
+    const float cm = duration / Config::SONAR_US_PER_CM;
 
-    return (cm >= 2.0f && cm <= 400.0f)
+    return (cm >= Config::SONAR_MIN_CM && cm <= Config::SONAR_MAX_CM)
         ? cm : -1.0f;
 }
 
@@ -110,6 +110,9 @@ unsigned long frontAgeMs() {
         ? millis() - lastFrontMs
         : ~0UL;
 }
+
+unsigned long leftAgeMs() { return haveLeft ? millis() - lastLeftMs : ~0UL; }
+unsigned long rightAgeMs() { return haveRight ? millis() - lastRightMs : ~0UL; }
 
 bool sidesFresh(unsigned long maxAgeMs) {
     return haveLeft && haveRight &&

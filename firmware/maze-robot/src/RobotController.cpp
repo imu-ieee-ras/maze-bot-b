@@ -8,12 +8,13 @@
 #include "MotorController.h"
 #include <math.h>
 #include "SafetyRules.h"
+#include "Logger.h"
+#include "Telemetry.h"
 
 namespace {
 
 bool autoMode = false;
 bool faultLatched = false;
-bool printRequested = false;
 bool encoderSessionActive = false;
 bool pendingDrive = false;
 bool stopLatched = false;
@@ -22,7 +23,6 @@ MotorController::Motion pendingMotion =
     MotorController::STOPPED;
 
 unsigned long transitionStartMs = 0;
-unsigned long lastPrintMs = 0;
 unsigned long lastManualMs = 0;
 unsigned long lastGyroCheckMs = 0;
 unsigned long lastBalanceMs = 0;
@@ -36,13 +36,13 @@ MotorController::Motion trackedMotion =
 Encoder::Counts previousTicks = {0, 0};
 Encoder::Counts balanceTicks = {0, 0};
 
-enum Fault {
-    GYRO_FAULT,
-    ENCODER_FAULT,
-    FRONT_FAULT,
-    SIDE_FAULT,
-    TURN_FAULT
-};
+using RobotController::Fault;
+using RobotController::GYRO_FAULT;
+using RobotController::ENCODER_FAULT;
+using RobotController::FRONT_FAULT;
+using RobotController::SIDE_FAULT;
+using RobotController::TURN_FAULT;
+Fault lastFault = RobotController::NO_FAULT;
 
 // endSession=false preserves encoder timers
 // during a short direction change.
@@ -72,7 +72,7 @@ void emergencyStop() {
     // Discard commands already buffered.
     char ignored;
 
-    for (uint8_t i = 0; i < 64; ++i) {
+    for (uint8_t i = 0; i < Config::SERIAL_DRAIN_LIMIT; ++i) {
         if (!Communication::nextCommand(ignored)) {
             break;
         }
@@ -89,8 +89,11 @@ void trip(Fault reason) {
     safeStop();
     autoMode = false;
     faultLatched = true;
+    lastFault = reason;
 
     switch (reason) {
+        case RobotController::NO_FAULT: // Status-only value; never passed by trip callers.
+            break;
         case GYRO_FAULT:
             Serial.println(F("FAULT: gyro/I2C read failed"));
             break;
@@ -249,7 +252,7 @@ bool turnAngle(float degrees) {
     safeStop(false);
 
     // One-time settling before gyro-based turn.
-    delay(100);
+    delay(Config::TURN_SETTLE_MS);
 
     if (degrees > 0) {
         MotorController::turnLeft();
@@ -263,10 +266,11 @@ bool turnAngle(float degrees) {
     float angle = 0.0f;
 
     // Requires hardware calibration.
-    const float target = fabsf(degrees) - 5.0f;
+    const float target = fabsf(degrees) - Config::TURN_STOP_MARGIN_DEG;
 
     const unsigned long timeoutMs =
-        fabsf(degrees) > 120 ? 4500UL : 2700UL;
+        fabsf(degrees) > Safety::TURN_LONG_THRESHOLD_DEG
+            ? Safety::TURN_LONG_TIMEOUT_MS : Safety::TURN_SHORT_TIMEOUT_MS;
 
     while (true) {
         // Process a bounded number of commands.
@@ -315,7 +319,7 @@ bool turnAngle(float degrees) {
         const float progress =
             degrees > 0 ? angle : -angle;
 
-        if (progress < -12.0f) {
+        if (progress < -Safety::TURN_REVERSE_LIMIT_DEG) {
             safeStop();
             return false;
         }
@@ -325,7 +329,8 @@ bool turnAngle(float degrees) {
             return true;
         }
 
-        delay(5);
+        Telemetry::update(); // Read-only observation; no additional sensor acquisition.
+        delay(Config::TURN_POLL_DELAY_MS);
     }
 }
 
@@ -485,7 +490,7 @@ void servicePendingDrive() {
         return;
     }
 
-    if (millis() - transitionStartMs < 100UL) {
+    if (millis() - transitionStartMs < Config::DIRECTION_CHANGE_DELAY_MS) {
         return;
     }
 
@@ -494,11 +499,10 @@ void servicePendingDrive() {
 
     pendingDrive = false;
 
-    if (millis() - lastManualMs >
-            SafetyRules::manualExpired(
-                millis(),
-                lastManualMs,
-                Safety::MANUAL_LEASE_MS
+    if (SafetyRules::manualExpired(
+            millis(),
+            lastManualMs,
+            Safety::MANUAL_LEASE_MS
         ) ||
         (requested == MotorController::FORWARD &&
          !frontSafe())) {
@@ -522,7 +526,7 @@ void handle(char command) {
     }
 
     if (command == 'P') {
-        printRequested = true;
+        Telemetry::request();
         return;
     }
 
@@ -542,7 +546,7 @@ void handle(char command) {
             // Discard buffered commands before re-arming.
             char ignored;
 
-            for (uint8_t i = 0; i < 64; ++i) {
+            for (uint8_t i = 0; i < Config::SERIAL_DRAIN_LIMIT; ++i) {
                 if (!Communication::nextCommand(ignored)) {
                     break;
                 }
@@ -624,7 +628,7 @@ void processCommands() {
         }
 
         if (command == 'P') {
-            printRequested = true;
+            Telemetry::request();
 
         } else if (command == 'X') {
             clearRequested = true;
@@ -660,22 +664,35 @@ void processCommands() {
 } // anonymous namespace
 
 namespace RobotController {
+Status status() {
+    return {autoMode, stopLatched, pendingDrive, faultLatched ? lastFault : NO_FAULT};
+}
+
 
 void begin() {
     Communication::begin();
+    const unsigned long serialStartedMs = millis();
     MotorController::begin();
+    // Configure stopped motor outputs before any potentially blocking boot log.
+    const unsigned long motorsStartedMs = millis();
+    Logger::boot(F("USB Serial: UART0 configured; USB bridge unverified"), serialStartedMs);
+    Logger::boot(F("Motor: digital I/O + PWM configured; motion unverified"), motorsStartedMs);
 
     DistanceSensors::begin();
+    Logger::boot(F("HC-SR04: digital I/O configured; echoes unverified"));
     Encoder::begin();
+    Logger::boot(F("Encoders: INT0/INT1 interrupts attached; pulses unverified"));
+    Logger::boot(F("MPU6050: I2C init; identity/calibration pending"));
     Gyro::begin();
 
-    Serial.println(F(
+    Logger::boot(F(
         "Maze Robot: F/B/L/R move, S/M stop, P data, A auto, X clear fault"
     ));
 
-    Serial.println(F(
+    Logger::boot(F(
         "Manual commands expire after 1.5s without renewal."
     ));
+    Logger::boot(F("Setup complete; physical motion checks still required"));
 }
 
 void update() {
@@ -713,14 +730,6 @@ void update() {
     if (faultLatched) {
         MotorController::stop();
 
-        if (printRequested &&
-            millis() - lastPrintMs >= 500UL) {
-
-            lastPrintMs = millis();
-            Communication::printReadings(false);
-            printRequested = false;
-        }
-
         return;
     }
 
@@ -756,25 +765,6 @@ void update() {
     }
 
     balanceForward();
-
-    if (printRequested ||
-        millis() - lastPrintMs >=
-            Config::PRINT_INTERVAL_MS) {
-
-        if (millis() - lastPrintMs >= 500UL) {
-            lastPrintMs = millis();
-
-            Communication::printReadings(
-                autoMode
-            );
-
-            // Telemetry itself reads the gyro.
-            // Stop immediately if that read fails.
-            checkGyroFault();
-        }
-
-        printRequested = false;
-    }
 }
 
 }
