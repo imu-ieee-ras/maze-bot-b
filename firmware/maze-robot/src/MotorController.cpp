@@ -57,7 +57,7 @@ void brake() {
   digitalWrite(Pins::RIGHT_IN4, HIGH);
   analogWrite(Pins::LEFT_EN, 255);
   analogWrite(Pins::RIGHT_EN, 255);
-  delay(65);
+  delay(Config::BRAKE_DURATION_MS);
   stop();
 }
 

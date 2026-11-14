@@ -88,7 +88,7 @@ void begin() {
     }
 
     ready = true;
-    delay(100);
+    delay(Config::GYRO_STARTUP_DELAY_MS);
 
     Serial.println(F(
         "Gyro calibration: keep robot STILL"
@@ -97,7 +97,7 @@ void begin() {
     long sum = 0;
     uint16_t ok = 0;
 
-    for (uint16_t i = 0; i < 200; ++i) {
+    for (uint16_t i = 0; i < Config::GYRO_CALIBRATION_SAMPLES; ++i) {
         int16_t z;
 
         if (readRawZ(z)) {
@@ -107,10 +107,10 @@ void begin() {
 
         if (runtimeFault) break;
 
-        delay(5);
+        delay(Config::GYRO_CALIBRATION_SAMPLE_DELAY_MS);
     }
 
-    if (ok < 150 || runtimeFault) {
+    if (ok < Config::GYRO_CALIBRATION_MIN_SAMPLES || runtimeFault) {
         ready = false;
 
         Serial.println(F(

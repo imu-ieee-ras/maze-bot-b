@@ -72,7 +72,7 @@ void emergencyStop() {
     // Discard commands already buffered.
     char ignored;
 
-    for (uint8_t i = 0; i < 64; ++i) {
+    for (uint8_t i = 0; i < Config::SERIAL_DRAIN_LIMIT; ++i) {
         if (!Communication::nextCommand(ignored)) {
             break;
         }
@@ -249,7 +249,7 @@ bool turnAngle(float degrees) {
     safeStop(false);
 
     // One-time settling before gyro-based turn.
-    delay(100);
+    delay(Config::TURN_SETTLE_MS);
 
     if (degrees > 0) {
         MotorController::turnLeft();
@@ -263,10 +263,11 @@ bool turnAngle(float degrees) {
     float angle = 0.0f;
 
     // Requires hardware calibration.
-    const float target = fabsf(degrees) - 5.0f;
+    const float target = fabsf(degrees) - Config::TURN_STOP_MARGIN_DEG;
 
     const unsigned long timeoutMs =
-        fabsf(degrees) > 120 ? 4500UL : 2700UL;
+        fabsf(degrees) > Safety::TURN_LONG_THRESHOLD_DEG
+            ? Safety::TURN_LONG_TIMEOUT_MS : Safety::TURN_SHORT_TIMEOUT_MS;
 
     while (true) {
         // Process a bounded number of commands.
@@ -315,7 +316,7 @@ bool turnAngle(float degrees) {
         const float progress =
             degrees > 0 ? angle : -angle;
 
-        if (progress < -12.0f) {
+        if (progress < -Safety::TURN_REVERSE_LIMIT_DEG) {
             safeStop();
             return false;
         }
@@ -325,7 +326,7 @@ bool turnAngle(float degrees) {
             return true;
         }
 
-        delay(5);
+        delay(Config::TURN_POLL_DELAY_MS);
     }
 }
 
@@ -485,7 +486,7 @@ void servicePendingDrive() {
         return;
     }
 
-    if (millis() - transitionStartMs < 100UL) {
+    if (millis() - transitionStartMs < Config::DIRECTION_CHANGE_DELAY_MS) {
         return;
     }
 
@@ -494,11 +495,10 @@ void servicePendingDrive() {
 
     pendingDrive = false;
 
-    if (millis() - lastManualMs >
-            SafetyRules::manualExpired(
-                millis(),
-                lastManualMs,
-                Safety::MANUAL_LEASE_MS
+    if (SafetyRules::manualExpired(
+            millis(),
+            lastManualMs,
+            Safety::MANUAL_LEASE_MS
         ) ||
         (requested == MotorController::FORWARD &&
          !frontSafe())) {
@@ -542,7 +542,7 @@ void handle(char command) {
             // Discard buffered commands before re-arming.
             char ignored;
 
-            for (uint8_t i = 0; i < 64; ++i) {
+            for (uint8_t i = 0; i < Config::SERIAL_DRAIN_LIMIT; ++i) {
                 if (!Communication::nextCommand(ignored)) {
                     break;
                 }
@@ -714,7 +714,7 @@ void update() {
         MotorController::stop();
 
         if (printRequested &&
-            millis() - lastPrintMs >= 500UL) {
+            millis() - lastPrintMs >= Config::MIN_PRINT_INTERVAL_MS) {
 
             lastPrintMs = millis();
             Communication::printReadings(false);
@@ -761,7 +761,7 @@ void update() {
         millis() - lastPrintMs >=
             Config::PRINT_INTERVAL_MS) {
 
-        if (millis() - lastPrintMs >= 500UL) {
+        if (millis() - lastPrintMs >= Config::MIN_PRINT_INTERVAL_MS) {
             lastPrintMs = millis();
 
             Communication::printReadings(
