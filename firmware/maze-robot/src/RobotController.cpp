@@ -682,7 +682,7 @@ void begin() {
     Logger::boot(F("HC-SR04: digital I/O configured; echoes unverified"));
     Encoder::begin();
     Logger::boot(F("Encoders: INT0/INT1 interrupts attached; pulses unverified"));
-    Logger::boot(F("MPU6050: I2C init; identity/calibration pending"));
+    Logger::boot(F("Gyro: I2C init; identity/calibration pending"));
     Gyro::begin();
 
     Logger::boot(F(

@@ -24,7 +24,7 @@ constexpr uint8_t LEFT_ECHO = A3;
 constexpr uint8_t RIGHT_TRIG = 13;
 constexpr uint8_t RIGHT_ECHO = 8;
 
-// MPU6050: SDA=A4, SCL=A5
+// MPU6050/MPU6500: SDA=A4, SCL=A5
 }
 
 namespace Config {
@@ -48,7 +48,7 @@ constexpr int SERIAL_GYRO_DECIMALS = 2;
 // Bounded RX draining for stop/re-arm; does not resize the UART buffer.
 constexpr int SERIAL_DRAIN_LIMIT = 64;
 
-// Sensor address and startup calibration; keep the robot stationary.
+// Shared I2C address; startup/reset settling >=100 ms; calibrate while stationary.
 constexpr uint8_t MPU_ADDRESS = 0x68;
 constexpr int GYRO_STARTUP_DELAY_MS = 100;
 constexpr int GYRO_CALIBRATION_SAMPLES = 200;
