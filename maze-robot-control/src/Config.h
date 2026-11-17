@@ -15,7 +15,8 @@ namespace Config {
     const uint8_t RIGHT_TRIG = 13; const uint8_t RIGHT_ECHO = 8;
 
     // Sürüş ve Karar Parametreleri
-    const int CRUISE_PWM = 150;       // Pilleri çökertmeyecek dengeli güç
-    const int TURN_PWM = 130;         // Dönüş hızı
-    const float STOP_DISTANCE = 20.0; // Durma mesafesi
+    const int CRUISE_PWM = 160;       // İleri sürüş temel hızı
+    const int MAX_CORRECTION = 40;    // Motorların durmasını önleyen maksimum düzeltme sınırı
+    const int TURN_PWM = 140;         // Dönüş hızı
+    const float STOP_DISTANCE = 20.0; // Engel algılama mesafesi (cm)
 }

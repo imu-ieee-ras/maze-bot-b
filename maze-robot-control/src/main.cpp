@@ -2,7 +2,6 @@
 #include "Sensors.h"
 #include "Motors.h"
 
-// Profesyonel State Machine Durumları
 enum class State { 
     FORWARD, 
     DECIDE, 
@@ -11,26 +10,41 @@ enum class State {
 };
 
 State currentState = State::FORWARD;
-
 unsigned long lastTelemetryTime = 0;
+unsigned long lastSonarTime = 0;
+
+float frontDist = 999.0;
+float leftDist = 999.0;
+float rightDist = 999.0;
+int obstacleHits = 0;
 
 void setup() {
-    Serial.begin(115200); // Bluetooth ve Serial iletişim
-    delay(2000);
+    Serial.begin(115200);
     Motors::begin();
+    // Kalibrasyon sırasında aracın el से sarsılmaması için 1.5 saniye bekle
+    delay(1500); 
     Sensors::begin();
     Serial.println("Maze Robot Initialized - System OK");
 }
 
 void loop() {
-    // 1. Sensörleri Oku
-    float frontDist = Sensors::getDistance(Config::FRONT_TRIG, Config::FRONT_ECHO);
-    float leftDist = Sensors::getDistance(Config::LEFT_TRIG, Config::LEFT_ECHO);
-    float rightDist = Sensors::getDistance(Config::RIGHT_TRIG, Config::RIGHT_ECHO);
+    // 1. Jiroskop sürekli ve hızlı okunmalı (İntegral kaçırmamak için)
     float yaw = Sensors::getYawAngle();
 
-    // 2. Bluetooth Telemetri Gönderimi (Saniyede 2 kez)
-    if (millis() - lastTelemetryTime > 500) {
+    // 2. Ön mesafeyi 50 ms'de bir oku (Ses dalgalarının birbirine girmesini engeller)
+    if (millis() - lastSonarTime >= 50) {
+        frontDist = Sensors::getDistance(Config::FRONT_TRIG, Config::FRONT_ECHO);
+        lastSonarTime = millis();
+
+        if (frontDist < Config::STOP_DISTANCE) {
+            obstacleHits++;
+        } else {
+            obstacleHits = 0;
+        }
+    }
+
+    // 3. Bluetooth Telemetri Gönderimi (Saniyede 2 kez)
+    if (millis() - lastTelemetryTime >= 500) {
         Serial.print("F:"); Serial.print(frontDist);
         Serial.print(" L:"); Serial.print(leftDist);
         Serial.print(" R:"); Serial.print(rightDist);
@@ -40,24 +54,29 @@ void loop() {
         lastTelemetryTime = millis();
     }
 
-    // 3. State Machine (Karar Mekanizması)
+    // 4. State Machine
     switch (currentState) {
         
         case State::FORWARD:
-            if (frontDist < Config::STOP_DISTANCE) {
+            // Üst üste 2 ölçümde de engel varsa gerçekten engel vardır (Gürültü filtresi)
+            if (obstacleHits >= 2) {
                 Motors::stop();
-                delay(500); 
+                delay(300); 
+                obstacleHits = 0;
                 currentState = State::DECIDE;
             } else {
-                // P-KONTROL İLE DÜMDÜZ GİTME
-                // Sol tekerlek daha çok döndüyse error pozitif olur, sola fren sağa gaz verir.
-                long error = Sensors::getLeftTicks() - Sensors::getRightTicks();
-                int correction = error * 2; // Kp = 2 (Tepki az gelirse 3 yap, çok titrerse 1 yap)
-                Motors::driveForward(correction);
+                // İki tekerlek de baz hızda (160 PWM) döner, sapma olursa ufak düzeltir.
+                // Şimdilik 0 veriyoruz ki iki motorun da eşit güçle döndüğünü gözünle gör.
+                Motors::driveForward(0);
             }
             break;
 
         case State::DECIDE:
+            // Araç durdu, şimdi yankı olmadan temizce sağ ve solu ölç
+            leftDist = Sensors::getDistance(Config::LEFT_TRIG, Config::LEFT_ECHO);
+            delay(30); // İki sensör arası yankı sönümleme süresi
+            rightDist = Sensors::getDistance(Config::RIGHT_TRIG, Config::RIGHT_ECHO);
+
             Sensors::resetYawAngle(); 
             if (rightDist > leftDist) {
                 currentState = State::TURN_RIGHT;
@@ -67,11 +86,12 @@ void loop() {
             break;
 
         case State::TURN_RIGHT:
-            // 90 DERECE KALİBRASYONU: Geniş dönüyorsa 80 yap, dar dönüyorsa 90-95 yap.
             if (abs(yaw) >= 80.0) { 
                 Motors::stop();
-                delay(200);
-                Sensors::resetTicks(); // Düz gitmeden önce encoder farkını sıfırla
+                delay(300);
+                Sensors::resetYawAngle();
+                Sensors::resetTicks();
+                frontDist = 999.0;
                 currentState = State::FORWARD;
             } else {
                 Motors::turnRight();
@@ -81,8 +101,10 @@ void loop() {
         case State::TURN_LEFT:
             if (abs(yaw) >= 80.0) { 
                 Motors::stop();
-                delay(200);
-                Sensors::resetTicks(); // Düz gitmeden önce encoder farkını sıfırla
+                delay(300);
+                Sensors::resetYawAngle();
+                Sensors::resetTicks();
+                frontDist = 999.0;
                 currentState = State::FORWARD;
             } else {
                 Motors::turnLeft();
