@@ -6,6 +6,7 @@
 namespace Motors {
     int currentLeft = 0;
     int currentRight = 0;
+    unsigned long lastRampTime = 0; // Yumuşak kalkış için zamanlayıcı
 
     void begin() {
         pinMode(Config::LEFT_IN1, OUTPUT);  pinMode(Config::LEFT_IN2, OUTPUT);
@@ -31,16 +32,17 @@ namespace Motors {
         int targetL = constrain((int)(leftSpeed * Config::LEFT_SCALE), -Config::MAX_PWM, Config::MAX_PWM);
         int targetR = constrain((int)(rightSpeed * Config::RIGHT_SCALE), -Config::MAX_PWM, Config::MAX_PWM);
 
-        while (currentLeft != targetL || currentRight != targetR) {
-            if (currentLeft < targetL) currentLeft = min(currentLeft + 10, targetL);
-            else if (currentLeft > targetL) currentLeft = max(currentLeft - 10, targetL);
+        // millis() tabanlı yumuşak kalkış: Arduino'yu kilitlemez
+        if (millis() - lastRampTime >= Config::RAMP_INTERVAL) {
+            if (currentLeft < targetL) currentLeft = min(currentLeft + Config::RAMP_STEP, targetL);
+            else if (currentLeft > targetL) currentLeft = max(currentLeft - Config::RAMP_STEP, targetL);
 
-            if (currentRight < targetR) currentRight = min(currentRight + 10, targetR);
-            else if (currentRight > targetR) currentRight = max(currentRight - 10, targetR);
+            if (currentRight < targetR) currentRight = min(currentRight + Config::RAMP_STEP, targetR);
+            else if (currentRight > targetR) currentRight = max(currentRight - Config::RAMP_STEP, targetR);
 
             setMotor(Config::LEFT_IN1, Config::LEFT_IN2, currentLeft);
             setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, currentRight);
-            delay(15); 
+            lastRampTime = millis();
         }
     }
 
@@ -53,52 +55,54 @@ namespace Motors {
 
     void turnDegrees(float degrees, bool toRight) {
         activeBrake(); 
-        delay(350);
+        delay(350); 
 
-        // Dönüş öncesi MPU canlı mı diye son kez yokla
-        Sensors::readGyroZ();
+        Sensors::readGyroZ(); // MPU'yu test et
 
-        // 1. DURUM: MPU TAKILI DEĞİLSE -> Doğrudan ms kuralıyla dön (Eski çalışan versiyon)
+        // 1. DURUM: MPU YOKSA (Zaman bazlı dönüş)
         if (!Sensors::mpuOk) {
-            if (toRight) drive(-Config::TURN_SPEED, Config::TURN_SPEED); // Sağa dön
-            else         drive(Config::TURN_SPEED, -Config::TURN_SPEED); // Sola dön
+            if (toRight) {
+                setMotor(Config::LEFT_IN1, Config::LEFT_IN2, -Config::TURN_SPEED);
+                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, Config::TURN_SPEED);
+            } else {
+                setMotor(Config::LEFT_IN1, Config::LEFT_IN2, Config::TURN_SPEED);
+                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -Config::TURN_SPEED);
+            }
             delay(Config::TURN_90_MS);
             activeBrake();
-            delay(250);
+            delay(200);
             return;
         }
 
-        // 2. DURUM: MPU TAKILIYSA -> Jiroskop ile 90 derece dön
+        // 2. DURUM: MPU VARSA (Jiroskop bazlı dönüş)
         float target = toRight ? -degrees : degrees;
         Sensors::resetHeading();
         unsigned long start = millis();
 
-        // Yumuşak kalkışla dönüşü başlat
-        if (toRight) drive(-Config::TURN_SPEED, Config::TURN_SPEED);
-        else         drive(Config::TURN_SPEED, -Config::TURN_SPEED);
+        // Dönüşü doğrudan setMotor ile başlat (drive() kullanma!)
+        if (toRight) {
+            setMotor(Config::LEFT_IN1, Config::LEFT_IN2, -Config::TURN_SPEED);
+            setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, Config::TURN_SPEED);
+        } else {
+            setMotor(Config::LEFT_IN1, Config::LEFT_IN2, Config::TURN_SPEED);
+            setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -Config::TURN_SPEED);
+        }
 
         while (millis() - start < 1500) {
             Sensors::updateHeading();
 
-            // Dönüş sırasında MPU koparsa veya 400ms geçtiği halde açı hiç değişmediyse (< 2 derece)
-            // Spin atmayı önle, ms kuralı süresini tamamlayıp hemen çık!
             if (!Sensors::mpuOk || (millis() - start > 400 && fabs(Sensors::getHeading()) < 2.0)) {
                 unsigned long elapsed = millis() - start;
-                if (elapsed < (unsigned long)Config::TURN_90_MS) {
-                    delay(Config::TURN_90_MS - elapsed);
-                }
+                if (elapsed < (unsigned long)Config::TURN_90_MS) delay(Config::TURN_90_MS - elapsed);
                 break;
             }
 
             float error = target - Sensors::getHeading();
-            if (fabs(error) < Config::TURN_TOLERANCE) {
-                break;
-            }
+            if (fabs(error) < Config::TURN_TOLERANCE) break;
 
             int speed = Config::TURN_MIN_SPEED + (int)(Config::TURN_KP * fabs(error));
             if (speed > Config::TURN_SPEED) speed = Config::TURN_SPEED;
 
-            // DÜZELTİLMİŞ YÖN: error > 0 (Sola), error < 0 (Sağa)
             if (error > 0) {
                 setMotor(Config::LEFT_IN1, Config::LEFT_IN2, speed);
                 setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -speed);
@@ -110,7 +114,7 @@ namespace Motors {
         }
 
         activeBrake();
-        delay(250);
+        delay(200);
         Sensors::resetHeading();
     }
 }
