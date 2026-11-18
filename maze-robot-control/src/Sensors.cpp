@@ -3,20 +3,22 @@
 #include <Wire.h>
 
 namespace Sensors {
-    volatile unsigned long leftTicks = 0;
-    volatile unsigned long rightTicks = 0;
-    float currentYaw = 0.0;
+    bool mpuOk = false;
+    uint8_t mpuAddr = 0x68;
     float gyroBiasZ = 0.0;
+    float heading = 0.0;
     unsigned long lastGyroTime = 0;
 
-    void leftInterrupt() { leftTicks++; }
-    void rightInterrupt() { rightTicks++; }
+    bool wakeMPU(uint8_t addr) {
+        Wire.beginTransmission(addr);
+        Wire.write(0x6B);
+        Wire.write(0x00);
+        if (Wire.endTransmission() != 0) return false;
 
-    void resetTicks() { 
-        noInterrupts();
-        leftTicks = 0; 
-        rightTicks = 0; 
-        interrupts();
+        Wire.beginTransmission(addr);
+        Wire.write(0x1B);
+        Wire.write(0x08); // +-500 deg/s (65.5 LSB)
+        return (Wire.endTransmission() == 0);
     }
 
     void begin() {
@@ -24,88 +26,91 @@ namespace Sensors {
         pinMode(Config::LEFT_TRIG, OUTPUT);  pinMode(Config::LEFT_ECHO, INPUT);
         pinMode(Config::RIGHT_TRIG, OUTPUT); pinMode(Config::RIGHT_ECHO, INPUT);
 
-        pinMode(Config::LEFT_ENCODER, INPUT_PULLUP);
-        pinMode(Config::RIGHT_ENCODER, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(Config::LEFT_ENCODER), leftInterrupt, RISING);
-        attachInterrupt(digitalPinToInterrupt(Config::RIGHT_ENCODER), rightInterrupt, RISING);
-
         Wire.begin();
-        Wire.setWireTimeout(25000, true); // I2C kilitlenmesini önler
+        Wire.setWireTimeout(3000, true); // Kablo çekilirse Arduino kilitlenmesin
 
-        // MPU6050 Uyandırma
-        Wire.beginTransmission(0x68);
-        Wire.write(0x6B); 
-        Wire.write(0x00);
-        Wire.endTransmission(true);
         delay(100);
+        if (wakeMPU(0x68)) {
+            mpuAddr = 0x68;
+            mpuOk = true;
+        } else if (wakeMPU(0x69)) {
+            mpuAddr = 0x69;
+            mpuOk = true;
+        } else {
+            mpuOk = false;
+        }
 
-        // Başlangıç Jiroskop Kalibrasyonu (Araç sabitken sapmayı ölçer)
-        long sum = 0;
-        int validSamples = 0;
-        for (int i = 0; i < 100; i++) {
-            Wire.beginTransmission(0x68);
-            Wire.write(0x47);
-            if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)0x68, (uint8_t)2, (uint8_t)true) == 2) {
-                int16_t gz = (Wire.read() << 8) | Wire.read();
-                sum += gz;
-                validSamples++;
+        if (mpuOk) {
+            delay(150);
+            float sum = 0;
+            int valid = 0;
+            for (int i = 0; i < 200; i++) {
+                Wire.beginTransmission(mpuAddr);
+                Wire.write(0x47);
+                if (Wire.endTransmission(false) == 0 && Wire.requestFrom(mpuAddr, (uint8_t)2) == 2) {
+                    int16_t raw = (Wire.read() << 8) | Wire.read();
+                    sum += (raw / 65.5);
+                    valid++;
+                }
+                delay(2);
             }
-            delay(5);
+            if (valid > 50) gyroBiasZ = sum / valid;
+            else mpuOk = false; // Veri sağlıklı değilse MPU'yu kapat
         }
-        if (validSamples > 0) {
-            gyroBiasZ = (float)sum / validSamples;
-        }
-        lastGyroTime = millis();
+        resetHeading();
     }
 
     float getDistance(uint8_t trigPin, uint8_t echoPin) {
-        digitalWrite(trigPin, LOW); delayMicroseconds(2);
-        digitalWrite(trigPin, HIGH); delayMicroseconds(10);
-        digitalWrite(trigPin, LOW);
-        
-        unsigned long duration = pulseIn(echoPin, HIGH, 25000); // Max ~4 metre
-        if (duration == 0) return 999.0;
-        
-        float cm = (duration / 2.0) * 0.0343;
-        if (cm < 2.0) return 999.0; // Hatalı dip okumaları yoksay
-        return cm;
-    }
-
-    float getYawAngle() {
-        unsigned long now = millis();
-        float dt = (now - lastGyroTime) / 1000.0;
-        lastGyroTime = now;
-
-        Wire.beginTransmission(0x68);
-        Wire.write(0x47);
-        if (Wire.endTransmission(false) != 0) return currentYaw;
-        if (Wire.requestFrom((uint8_t)0x68, (uint8_t)2, (uint8_t)true) != 2) return currentYaw;
-        
-        int16_t gz = (Wire.read() << 8) | Wire.read();
-        float gzRate = ((float)gz - gyroBiasZ) / 131.0;
-        
-        if (abs(gzRate) > 0.5) {
-            currentYaw += (gzRate * dt);
+        for (int i = 0; i < 2; i++) {
+            digitalWrite(trigPin, LOW); delayMicroseconds(2);
+            digitalWrite(trigPin, HIGH); delayMicroseconds(10);
+            digitalWrite(trigPin, LOW);
+            
+            unsigned long duration = pulseIn(echoPin, HIGH, Config::ECHO_TIMEOUT); 
+            if (duration > 0) {
+                float cm = duration / 58.0;
+                if (cm >= 0.1 && cm < 400.0) return cm;
+            }
+            delay(5);
         }
-        return currentYaw;
+        return 999.0;
     }
 
-    void resetYawAngle() { 
-        currentYaw = 0.0; 
-        lastGyroTime = millis();
+    float readGyroZ() {
+        Wire.beginTransmission(mpuAddr);
+        Wire.write(0x47);
+        if (Wire.endTransmission(false) != 0) {
+            // Kablo çekildiyse veya koptuysa anında mpuOk = false yap!
+            mpuOk = false;
+            return 0.0;
+        }
+        if (Wire.requestFrom(mpuAddr, (uint8_t)2) != 2) {
+            mpuOk = false;
+            return 0.0;
+        }
+        
+        mpuOk = true;
+        int16_t raw = (Wire.read() << 8) | Wire.read();
+        return (raw / 65.5) - gyroBiasZ;
     }
 
-    unsigned long getLeftTicks() { 
-        noInterrupts();
-        unsigned long val = leftTicks;
-        interrupts();
-        return val; 
+    void resetHeading() {
+        heading = 0.0;
+        lastGyroTime = micros();
     }
 
-    unsigned long getRightTicks() { 
-        noInterrupts();
-        unsigned long val = rightTicks;
-        interrupts();
-        return val; 
+    void updateHeading() {
+        unsigned long now = micros();
+        float dt = (now - lastGyroTime) / 1000000.0;
+        lastGyroTime = now;
+        
+        float gz = readGyroZ();
+        if (mpuOk && fabs(gz) > 0.3) {
+            heading += gz * dt;
+        }
+    }
+
+    float getHeading() {
+        return mpuOk ? heading : 0.0;
     }
 }

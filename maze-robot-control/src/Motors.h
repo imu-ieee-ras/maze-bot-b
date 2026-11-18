@@ -1,8 +1,7 @@
 #pragma once
 namespace Motors {
     void begin();
-    void driveForward(int correction = 0);
-    void turnRight();
-    void turnLeft();
-    void stop();
+    void drive(int leftSpeed, int rightSpeed);
+    void activeBrake();
+    void turnDegrees(float degrees, bool toRight);
 }

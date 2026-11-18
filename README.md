@@ -108,12 +108,12 @@ Arduino Uno R3 üzerindeki donanımsal kesme (Interrupt), PWM ve I2C pinleri hi�
 | :--- | :--- | :--- | :--- | :--- |
 | **Sol H2010 Hız Sensörü** | `D0` | **D2** | Dijital Giriş (`INT0`) | Donanımsal kesme (Interrupt) pini |
 | **Sağ H2010 Hız Sensörü** | `D0` | **D3** | Dijital Giriş (`INT1`) | Donanımsal kesme (Interrupt) pini |
-| **L298N Motor Sürücü** | `ENA` (A Enable) | **D9 (~)** | PWM Çıkışı (`Timer1`) | Jumper çıkarılacak, Sol Motor Hız |
-| **L298N Motor Sürücü** | `IN1` | **D4** | Dijital Çıkış | Sol Motor Yön 1 |
-| **L298N Motor Sürücü** | `IN2` | **D5 (~)** | Dijital Çıkış | Sol Motor Yön 2 |
-| **L298N Motor Sürücü** | `IN3` | **D6 (~)** | Dijital Çıkış | Sağ Motor Yön 1 |
-| **L298N Motor Sürücü** | `IN4` | **D7** | Dijital Çıkış | Sağ Motor Yön 2 |
-| **L298N Motor Sürücü** | `ENB` (B Enable) | **D10 (~)** | PWM Çıkışı (`Timer1`) | Jumper çıkarılacak, Sağ Motor Hız |
+| **L298N Motor Sürücü** | `ENA` | **H Jumper** | PWM Çıkışı (`Timer1`) | - |
+| **L298N Motor Sürücü** | `IN1` | **D9 (~)** | Dijital Çıkış | Sol Motor Yön 1 |
+| **L298N Motor Sürücü** | `IN2` | **D10 (~)** | Dijital Çıkış | Sol Motor Yön 2 |
+| **L298N Motor Sürücü** | `IN3` | **D5 (~)** | Dijital Çıkış | Sağ Motor Yön 1 |
+| **L298N Motor Sürücü** | `IN4` | **D6 (~)** | Dijital Çıkış | Sağ Motor Yön 2 |
+| **L298N Motor Sürücü** | `ENB` | **H Jumper** | PWM Çıkışı (`Timer1`) | - |
 | **Ön HC-SR04 Mesafe** | `Trig` | **A0 (D14)** | Dijital Çıkış | $10\text{ }\mu\text{s}$ tetikleme darbesi |
 | **Ön HC-SR04 Mesafe** | `Echo` | **A1 (D15)** | Dijital Giriş | Yankı süresi okuma |
 | **Sol HC-SR04 Mesafe** | `Trig` | **A2 (D16)** | Dijital Çıkış | $10\text{ }\mu\text{s}$ tetikleme darbesi |
@@ -122,8 +122,8 @@ Arduino Uno R3 üzerindeki donanımsal kesme (Interrupt), PWM ve I2C pinleri hi�
 | **Sağ HC-SR04 Mesafe** | `Echo` | **D8** | Dijital Giriş | Yankı süresi okuma |
 | **MPU6050 Jiroskop** | `SDA` | **A4 (D18/SDA)** | I2C Veri Hattı | Donanımsal I2C SDA |
 | **MPU6050 Jiroskop** | `SCL` | **A5 (D19/SCL)** | I2C Saat Hattı | Donanımsal I2C SCL |
-| **HC-05 Bluetooth** | `TXD` | **D11** | Yazılımsal UART RX | Doğrudan `D11` pinine bağlanır |
-| **HC-05 Bluetooth** | `RXD` | **D12** | Yazılımsal UART TX | $1\text{ k}\Omega$ / $2\text{ k}\Omega$ gerilim bölücü ile bağlanır |
+| **HC-05 Bluetooth** | `TXD` | **-** | Yazılımsal UART RX | Doğrudan `D11` pinine bağlanır |
+| **HC-05 Bluetooth** | `RXD` | **D1 (TX)** | Yazılımsal UART TX | $1\text{ k}\Omega$ / $2\text{ k}\Omega$ gerilim bölücü ile bağlanır |
 
 > **Tasarım Notu:** Arduino'nun `D0 (RX)` ve `D1 (TX)` pinleri, bilgisayardan USB ile kod yüklerken kabloları sök-tak yapmamak ve Seri Port Ekranı (Serial Monitor) üzerinden hata ayıklayabilmek için özellikle boş bırakılmıştır. Ayrıca L298N üzerinde `ENA` ve `ENB` pinlerinin ikisi de `Timer1` (`D9` ve `D10`) üzerine atanarak iki motorun birebir aynı PWM frekansıyla ($490\text{ Hz}$) sürülmesi sağlanmıştır.
 
