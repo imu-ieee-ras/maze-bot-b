@@ -6,7 +6,7 @@
 namespace Motors {
     int currentLeft = 0;
     int currentRight = 0;
-    unsigned long lastRampTime = 0; // Yumuşak kalkış için zamanlayıcı
+    unsigned long lastRampTime = 0;
 
     void begin() {
         pinMode(Config::LEFT_IN1, OUTPUT);  pinMode(Config::LEFT_IN2, OUTPUT);
@@ -14,8 +14,10 @@ namespace Motors {
         activeBrake();
     }
 
+    // DÜZELTME: Sağ motorun pin sırası test koduna göre düzeltildi (IN3, IN4)
     void setMotor(uint8_t in_x, uint8_t in_y, int speed) {
         speed = constrain(speed, -Config::MAX_PWM, Config::MAX_PWM);
+        
         if (speed > 0) {
             analogWrite(in_x, speed);
             digitalWrite(in_y, LOW);
@@ -23,8 +25,9 @@ namespace Motors {
             digitalWrite(in_x, LOW);
             analogWrite(in_y, -speed);
         } else {
-            digitalWrite(in_x, LOW);
-            digitalWrite(in_y, LOW);
+            // Aktif Fren
+            digitalWrite(in_x, HIGH);
+            digitalWrite(in_y, HIGH);
         }
     }
 
@@ -32,7 +35,6 @@ namespace Motors {
         int targetL = constrain((int)(leftSpeed * Config::LEFT_SCALE), -Config::MAX_PWM, Config::MAX_PWM);
         int targetR = constrain((int)(rightSpeed * Config::RIGHT_SCALE), -Config::MAX_PWM, Config::MAX_PWM);
 
-        // millis() tabanlı yumuşak kalkış: Arduino'yu kilitlemez
         if (millis() - lastRampTime >= Config::RAMP_INTERVAL) {
             if (currentLeft < targetL) currentLeft = min(currentLeft + Config::RAMP_STEP, targetL);
             else if (currentLeft > targetL) currentLeft = max(currentLeft - Config::RAMP_STEP, targetL);
@@ -40,8 +42,9 @@ namespace Motors {
             if (currentRight < targetR) currentRight = min(currentRight + Config::RAMP_STEP, targetR);
             else if (currentRight > targetR) currentRight = max(currentRight - Config::RAMP_STEP, targetR);
 
+            // DÜZELTME: Sağ motor pin sırası RIGHT_IN3, RIGHT_IN4 olarak değiştirildi!
             setMotor(Config::LEFT_IN1, Config::LEFT_IN2, currentLeft);
-            setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, currentRight);
+            setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, currentRight);
             lastRampTime = millis();
         }
     }
@@ -49,51 +52,49 @@ namespace Motors {
     void activeBrake() {
         currentLeft = 0;
         currentRight = 0;
+        // DÜZELTME: Sağ motor pin sırası düzeltildi!
         setMotor(Config::LEFT_IN1, Config::LEFT_IN2, 0);
-        setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, 0);
+        setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, 0);
     }
 
     void turnDegrees(float degrees, bool toRight) {
         activeBrake(); 
-        delay(350); 
+        delay(250); 
 
-        Sensors::readGyroZ(); // MPU'yu test et
+        Sensors::readGyroZ(); 
 
         // 1. DURUM: MPU YOKSA (Zaman bazlı dönüş)
         if (!Sensors::mpuOk) {
             if (toRight) {
                 setMotor(Config::LEFT_IN1, Config::LEFT_IN2, -Config::TURN_SPEED);
-                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, Config::TURN_SPEED);
+                setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, Config::TURN_SPEED);
             } else {
                 setMotor(Config::LEFT_IN1, Config::LEFT_IN2, Config::TURN_SPEED);
-                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -Config::TURN_SPEED);
+                setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, -Config::TURN_SPEED);
             }
             delay(Config::TURN_90_MS);
             activeBrake();
-            delay(200);
+            delay(300);
             return;
         }
 
-        // 2. DURUM: MPU VARSA (Jiroskop bazlı dönüş)
+        // 2. DURUM: MPU VARSA (Jiroskop bazlı hassas dönüş)
         float target = toRight ? -degrees : degrees;
         Sensors::resetHeading();
         unsigned long start = millis();
 
-        // Dönüşü doğrudan setMotor ile başlat (drive() kullanma!)
         if (toRight) {
             setMotor(Config::LEFT_IN1, Config::LEFT_IN2, -Config::TURN_SPEED);
-            setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, Config::TURN_SPEED);
+            setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, Config::TURN_SPEED);
         } else {
             setMotor(Config::LEFT_IN1, Config::LEFT_IN2, Config::TURN_SPEED);
-            setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -Config::TURN_SPEED);
+            setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, -Config::TURN_SPEED);
         }
 
-        while (millis() - start < 1500) {
+        while (millis() - start < 800) {
             Sensors::updateHeading();
 
             if (!Sensors::mpuOk || (millis() - start > 400 && fabs(Sensors::getHeading()) < 2.0)) {
-                unsigned long elapsed = millis() - start;
-                if (elapsed < (unsigned long)Config::TURN_90_MS) delay(Config::TURN_90_MS - elapsed);
                 break;
             }
 
@@ -105,16 +106,16 @@ namespace Motors {
 
             if (error > 0) {
                 setMotor(Config::LEFT_IN1, Config::LEFT_IN2, speed);
-                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, -speed);
+                setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, -speed);
             } else {
                 setMotor(Config::LEFT_IN1, Config::LEFT_IN2, -speed);
-                setMotor(Config::RIGHT_IN4, Config::RIGHT_IN3, speed);
+                setMotor(Config::RIGHT_IN3, Config::RIGHT_IN4, speed);
             }
             delay(5);
         }
 
-        activeBrake();
-        delay(200);
+        activeBrake(); 
+        delay(500);    
         Sensors::resetHeading();
     }
 }

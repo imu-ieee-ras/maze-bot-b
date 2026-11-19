@@ -16,6 +16,11 @@ namespace Sensors {
 
         Wire.beginTransmission(addr);
         Wire.write(0x1B); Wire.write(0x08); // +-500 deg/s
+        if (Wire.endTransmission() != 0) return false;
+
+        //DLPF (Dahili Alçak Geçiren Filtre) - Motor parazitini engeller
+        Wire.beginTransmission(addr);
+        Wire.write(0x1A); Wire.write(0x03); // 44Hz filtre
         return (Wire.endTransmission() == 0);
     }
 
@@ -25,6 +30,7 @@ namespace Sensors {
         pinMode(Config::RIGHT_TRIG, OUTPUT); pinMode(Config::RIGHT_ECHO, INPUT);
 
         Wire.begin();
+        Wire.setClock(100000);
         Wire.setWireTimeout(3000, true); 
 
         delay(100);
@@ -100,12 +106,15 @@ namespace Sensors {
     void updateHeading() {
         unsigned long now = micros();
         float dt = (now - lastGyroTime) / 1000000.0;
-        lastGyroTime = now;
+        lastGyroTime = now; // Zamanı HER DURUMDA güncelle! (Hatanın kaynağı buydu)
+        
+        // Eğer döngü çok yavaşladıysa (gecikme olduysa) entegrasyonu atla
+        if (dt > 0.1) return; 
         
         float gz = readGyroZ();
         if (mpuOk) {
-            // Eğer okunan değer anormal yüksekse (parazit) görmezden gel
-            if (fabs(gz) > 300.0) return; 
+            // Parazit gelse bile return yapma, sadece o anki veriyi sıfırla
+            if (fabs(gz) > 300.0) gz = 0.0; 
             
             heading += gz * dt;
             if (heading > 180.0)  heading -= 360.0;
