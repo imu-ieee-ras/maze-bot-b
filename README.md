@@ -1,6 +1,6 @@
 # Otonom Labirent Çözen Robot (Maze Robot) - Donanım ve Yazılım Rehberi
 
-Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapacak ekip üyeleri için **adım adım kablolama rehberi**, yazılım ekibi için ise **pin haritası ve algoritma referansı** olarak hazırlanmıştır. 
+Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapacak ekip üyeleri için **kablolama rehberi**, yazılım ekibi için ise **güncel pin haritası ve algoritma referansı** olarak hazırlanmıştır.
 
 ## 📑 İçindekiler
 - [🎯 Projenin Amacı ve Çalışma Senaryosu](#-projenin-amacı-ve-çalışma-senaryosu)
@@ -9,15 +9,16 @@ Bu doküman, otonom labirent çözen robot projemizin donanım montajını yapac
 - [2. Güç ve Voltaj Dağıtım Mimarisi (Kritik Uyarılar)](#2-güç-ve-voltaj-dağıtım-mimarisi-kritik-uyarılar)
 - [3. Ana Pin Bağlantı Tablosu (Donanım & Yazılım Referansı)](#3-ana-pin-bağlantı-tablosu-donanım--yazılım-referansı)
 - [4. Modül Bazlı Fiziksel Montaj ve Kablolama Rehberi](#4-modül-bazlı-fiziksel-montaj-ve-kablolama-rehberi)
-- [5. Yazılım Ekibi için Kritik Uygulama ve Algoritma Notları](#5-yazılım-ekibi-için-kritik-uygulama-ve-algoritma-notları)
+- [5. Güncel Yazılım Mimarisi ve Algoritma Özeti](#5-güncel-yazılım-mimarisi-ve-algoritma-özeti)
 
 ## 🎯 Projenin Amacı ve Çalışma Senaryosu
 
-Robotumuz, motor sürücü aracılığıyla tekerleklere güç vererek labirent koridorlarında otonom olarak ilerleyecektir. Temel çalışma döngüsü şu şekildedir:
-1. **Düz Sürüş:** Hız sensörlerinden (enkoder) ve jiroskoptan aldığı verilerle iki tekerleğin hızını eşitleyerek koridorda sapmadan, düz bir çizgide ilerler.
-2. **Engel Algılama ve Durma:** Ön, sağ ve soldaki ultrasonik mesafe sensörleri ile çevresini sürekli tarar. Önüne bir engel (duvar) çıktığında mesafeye bağlı olarak önce kademeli şekilde yavaşlar, ardından tam duruş yapar.
-3. **Yön Kararı ve Dönüş:** Sağ ve sol mesafe sensörlerinden gelen verilere göre açık olan yolu seçer. Jiroskop (MPU6050) verisini referans alarak tam açılı ($90^\circ$ veya $180^\circ$) dönüş yapar ve yeni yönde ilerlemeye devam eder.
-4. **Kablosuz Telemetri:** Tüm bu süreç boyunca sensörlerden okunan veriler ve aracın anlık karar durumu Bluetooth modülü (HC-05) üzerinden gerçek zamanlı olarak ana bilgisayara aktarılır.
+Robotumuz, 4-pin PWM motor kontrolü ve 5 durumlu **Durum Makinesi (State Machine)** ile labirent koridorlarında otonom olarak ilerler. Güncel çalışma döngüsü şu şekildedir:
+1. **Düz Sürüş (`FORWARD`):** MPU6050 jiroskobunun Z ekseni açısal verisi (Yaw) ile kapalı çevrim oransal kontrol (P-Kontrol) uygulayarak $0^\circ$ yönünde düz ilerler. *(H2010 hız sensörleri şasede bağlıdır ancak mevcut yazılım aşamasında devre dışıdır.)*
+2. **Engel Algılama ve Aktif Fren (`BRAKE_WAIT`):** Ön HC-SR04 ultrasonik sensör $20\text{ cm}$ altında bir engel algıladığında motorlara elektronik aktif fren (`HIGH/HIGH`) uygular ve $250\text{ ms}$ boyunca aracın tam durmasını bekler.
+3. **Yön Kararı ve $90^\circ$ Dönüş (`DECIDE` → `TURNING`):** Sağ ve sol HC-SR04 sensörlerini karşılaştırarak daha açık olan yöne karar verir. MPU6050 verisiyle oransal kontrollü $90^\circ$ tank dönüşü yapar (MPU bağlantısı koparsa otomatik olarak zaman bazlı yedek dönüşe geçer).
+4. **Dönüş Sonrası Doğrulama (`POST_TURN_WAIT`):** Dönüş bitiminde $500\text{ ms}$ aktif frende beklerken yeni yönün mesafelerini taze olarak ölçer; yeni ön yön de kapalıysa (çıkmaz sokak) ileri gitmeden doğrudan tekrar dönüş kararı verir, yol açıksa yönü sıfırlayıp düz devam eder.
+5. **Kablosuz Telemetri:** Tüm süreç boyunca ön/sol/sağ mesafe, Yaw açısı, aktif durum (`State`) ve dönüş bitiş özeti HC-05 Bluetooth modülü üzerinden **`9600 baud`** hızında bilgisayara aktarılır (`telemetry-cli.py`).
 
 ## 📦 Kullanılan Parçalar (Malzeme Listesi)
 
@@ -28,21 +29,21 @@ Robotumuz, motor sürücü aracılığıyla tekerleklere güç vererek labirent 
 * **HC-SR04 Ultrasonik Mesafe Sensörü** $\times 3$ *(Ön, Sağ, Sol)*
 * **MPU6050 Jiroskop ve İvmeölçer Modülü** $\times 1$
 * **HC-05 Bluetooth Modülü** $\times 1$
-* **1.5V 4 Slot AA Pil Yuvası** $\times 2$ *(Toplam 8 Pil Yuvası)*
-* **1.5V AA Pil** $\times 8$
-* **1k $\Omega$ ve 2k $\Omega$ Direnç** *(HC-05 RXD gerilim bölücü devresi için)*
+* **1.5V 4 Slot AA Pil Yuvası** $\times 2$ *(Toplam 8 LR6 Alkalin Pil)*
+* **Gerilim Bölücü Dirençleri** *($1\text{ k}\Omega$ / $2\text{ k}\Omega$ veya $3 \times$ eş direnç ile 1:2 oran — HC-05 RXD için)*
+* **KCD11 Açma/Kapama Anahtarı** $\times 1$
 
 ## 1. Sistem Mimarisi ve Donanım Görev Dağılımı
 
 Robot üzerindeki her bir parçanın sistem içindeki görevi ve diğer parçalarla olan ilişkisi aşağıda detaylandırılmıştır:
 
 ### 🧠 Arduino Uno R3 (SMD) – Ana Kontrolcü
-Tüm sensörlerden gelen verileri okur, duvar takip ve dönüş kararlarını verir, motor sürücüye hız ve yön sinyallerini üretir ve telemetri paketlerini Bluetooth üzerinden ana bilgisayara aktarır.
+Tüm sensörlerden gelen verileri okur, 5 durumlu State Machine ile sürüş ve dönüş kararlarını verir, motor sürücüye 4-pin PWM sinyallerini üretir ve telemetri paketlerini donanımsal UART (`D0/D1`) üzerinden bilgisayara aktarır.
 
 ![Arduino Uno R3 Pinout](<images/Arduino Uno R3 SMD.png>)
 
 ### ⚡ L298N Motor Sürücü – Güç ve Yön Aktüatörü
-Arduino'nun dijital pinleri motorları çalıştırmak için gereken yüksek akımı doğrudan veremez (Arduino pinleri maksimum $20\text{ mA}-40\text{ mA}$ verirken motorlar yüzlerce miliamper çeker). L298N, pil grubundan aldığı yüksek gücü kullanarak Arduino'dan gelen düşük güçlü **PWM** sinyalleriyle motorları kademeli olarak hızlandırır veya yavaşlatır. Lojik yön pinleriyle (`IN1`–`IN4`) aracın ileri, geri, olduğu yerde eksen dönüşü (tank dönüşü) ve ani elektronik frenleme hareketlerini yaptırır.
+Arduino'nun dijital pinleri motorları çalıştırmak için gereken yüksek akımı doğrudan veremez. L298N, pil grubundan aldığı gücü kullanarak Arduino'dan gelen **PWM** sinyalleriyle motorları kontrol eder. Güncel mimaride `ENA` ve `ENB` jumper'ları takılı bırakılır; hız, yön ve aktif fren (`HIGH/HIGH`) doğrudan 4 PWM yön pininden (`IN1`–`IN4`) yönetilir.
 
 ![L298N Motor Sürücü](<images/L298N - Motor  Driver.png>)
 
@@ -51,23 +52,23 @@ $1:48$ dişli redüksiyon oranıyla tekerleklere tork ve hareket sağlar.
 
 ![Sarı TT Motor Özellikleri](<images/Sarı Motor.png>)
 
-### ⏱️ H2010 Optokuplör Hız Sensörleri (2 Adet) – Odometri ve Hız Eşitleme
-Üretim toleransları sebebiyle iki DC motora aynı voltaj verilse bile tekerlekler birebir aynı hızda dönmez ve araç bir tarafa çeker. H2010 üzerindeki kızılötesi yarık ve LM393 karşılaştırıcı entegre, motor miline bağlı delikli enkoder diskinin dönüşünü dijital sinyallere (`D0`) çevirir. Bu sayede sağ ve sol tekerleklerin anlık dönüş hızı (RPM) ve katettiği mesafe ölçülerek iki tekerleğin hızı yazılımsal olarak eşitlenir.
+### ⏱️ H2010 Optokuplör Hız Sensörleri (2 Adet) – Odometri (Gelecek Faz)
+Motor miline bağlı delikli enkoder diskinin dönüşünü dijital darbelere (`D0`) çevirerek tekerlek hızını/mesafesini ölçer. Donanımsal olarak `D2` ve `D3` kesme pinlerine bağlıdır; mevcut sürümde düz gidiş ve dönüş yalnızca MPU6050 ile yapıldığı için yazılımda şimdilik pasif bırakılmıştır.
 
 ![H2010 Hız Sensörü Şeması](<images/H2010 - Hız Sensoru.png>)
 
-### 🧭 MPU6050 Jiroskop ve İvmeölçer – Yönelim (Yaw) ve Hassas Dönüş Kontrolü
-Sadece önüne engel çıktığında $90^\circ$ veya $180^\circ$ köşe dönüşlerini hassas ölçmekle kalmaz; araç düz koridorda ilerlerken zemin kayması (patinaj) nedeniyle tekerlek enkoderlerinin fark edemediği açısal sapmaları (Z ekseni dönüş hızı) anlık yakalayarak aracın düz bir çizgide kalmasını sağlar.
+### 🧭 MPU6050 Jiroskop ve İvmeölçer – Yönelim (Yaw) ve $90^\circ$ Dönüş Kontrolü
+I2C (`A4/A5`, $100\text{ kHz}$) üzerinden Z ekseni açısal hızını okur. Dahili $44\text{ Hz}$ alçak geçiren filtre (DLPF) ve açılışta yapılan 200 örneklik sabit sapma (bias) kalibrasyonu sayesinde hem düz koridorda yönü $0^\circ$'da tutar hem de $90^\circ$ dönüşlerde açıyı ölçer.
 
 ![MPU6050 Pinout](<images/MPU6050 - Jiroskop & İvmeölçer.png>)
 
-### 📏 HC-SR04 Ultrasonik Mesafe Sensörleri (3 Adet) – Çevre Algılama ve Koridor Ortalama
-Ses dalgaları gönderip yankı süresini ölçerek mesafeyi hesaplar. Ön sensör engele yaklaşırken kademeli yavaşlama ve durma mesafesini belirlerken, sağ ve sol sensörler hem açık koridor (dönüş yönü) kararını verir hem de düz sürüş esnasında aracın sağ ve sol duvarlara eşit uzaklıkta (koridor ortasında) kalmasını sağlar.
+### 📏 HC-SR04 Ultrasonik Mesafe Sensörleri (3 Adet) – Çevre Algılama
+Ses dalgaları gönderip yankı süresini ölçerek mesafeyi hesaplar. Ön sensör engel algılama ve durma kararını verir; sağ ve sol sensörler ise dönüş anında daha açık olan yönü seçmek için kullanılır.
 
 ![HC-SR04 Ultrasonik Mesafe Sensörü](<images/HC-SR04 - Ultrasonik Mesafe Sensörü.png>)
 
-### 📡 HC-05 Bluetooth Modülü – Kablosuz Telemetri ve Komut Hattı
-Araç üzerindeki sensör verilerini, anlık hızı, yönelim açısını ve robotun karar durumunu UART seri haberleşme protokolü üzerinden gerçek zamanlı olarak ana makineye (PC) aktarır.
+### 📡 HC-05 Bluetooth Modülü – Kablosuz Telemetri Hattı
+Araç üzerindeki mesafe, yönelim açısı, aktif durum (`State`) ve dönüş bitiş verilerini donanımsal UART (`9600 baud`) üzerinden gerçek zamanlı olarak bilgisayara aktarır.
 
 ![HC-05 Bluetooth Pinout](<images/HC-05 - Bluetooth.jpg>)
 
@@ -75,110 +76,107 @@ Araç üzerindeki sensör verilerini, anlık hızı, yönelim açısını ve rob
 
 ## 2. Güç ve Voltaj Dağıtım Mimarisi (Kritik Uyarılar)
 
-Sistemde toplam 8 adet $1.5\text{ V}$ AA pil (iki adet 4'lü pil yuvası) kullanılacaktır. Elektronik bileşenlerin yanmaması ve Arduino'nun motor parazitlerinden dolayı kapanıp açılmaması (reset atmaması) için aşağıdaki kurallara dikkat edilmelidir:
+Sistemde toplam 8 adet $1.5\text{ V}$ **LR6 Alkalin** AA pil (iki adet 4'lü pil yuvası seri bağlı) kullanılmaktadır. Motor kalkışlarında voltaj çökmesini (brownout reset) önlemek için aşağıdaki güç dağılımı uygulanır:
 
 ### 🔋 Pil Bağlantısı ve Motor Voltajı Sınırı
-* İki adet 4'lü AA pil yuvası seri bağlandığında nominal **$12\text{ V}$** (tam dolu alkalin pillerle yaklaşık $12.8\text{ V}$) elde edilir.
-* L298N motor sürücü kendi iç yapısında yaklaşık **$1.5\text{ V}$ ile $2\text{ V}$** arasında gerilim düşümü yaratır; yani $12\text{ V}$ giriş verildiğinde motorlara maksimum **$10\text{ V}$** ulaşır.
-* Sarı TT motorlar $3\text{ V}-12\text{ V}$ aralığında çalışabilse de nominal tasarım voltajları **$6\text{ V}$ ($250\text{ RPM}$)** seviyesindedir ve maksimum $160\text{ mA}$ (boşta $95\text{ mA}$) akım çekerler. Motorlara sürekli $10\text{ V}$ vermek labirent içinde aşırı hıza ve plastik dişlilerin aşınmasına yol açacağından, yazılım ekibi PWM üst sınırını `255` yerine **`150-170`** bandında sınırlandırmalıdır.
-* *Alternatif Güç Önerisi:* İki 4'lü pil yuvasını seri bağlamak yerine; birinci $6\text{ V}$ pil yuvası sadece L298N motor girişine, ikinci $6\text{ V}$ pil yuvası ise sadece Arduino `VIN` girişine ayrılarak tam $6\text{ V}$ motor sürüşü ve sıfır elektriksel gürültü elde edilebilir.
+* İki adet 4'lü AA pil yuvası seri bağlandığında nominal **$12\text{ V}$** elde edilir (anahtar `KCD11` üzerinden ana hatta bağlanır). Çinko-karbon (R6) piller kalkış akımında voltaj çökmesine neden olduğundan **LR6 Alkalin** pil kullanılmalıdır.
+* L298N motor sürücü iç yapısında yaklaşık **$1.5\text{ V}-2\text{ V}$** gerilim düşümü yaratır; sarı TT motorların nominal voltajı $6\text{ V}$ olduğundan yazılımda `MAX_PWM = 120`, `CRUISE_PWM = 55` ve yumuşak kalkış (soft-start) ile akım sınırlandırılır.
 
-### 🔌 Arduino ve 5V Sensör Besleme Hattı
-* Seri bağlı $12\text{ V}$ pil grubunun artı ($+$) kutbundan iki paralel kablo çıkarılmalıdır: Birinci kablo L298N üzerindeki **+12V Power** klemensine, ikinci kablo ise Arduino Uno üzerindeki **VIN** pinine (veya DC adaptör girişine) bağlanmalıdır.
-* L298N üzerindeki **5V Enable** jumper'ı takılı bırakılmalı, ancak L298N'in **+5V Power** klemensi Arduino'nun **5V** pinine **kesinlikle bağlanmamalıdır** (iki voltaj regülatörünün çakışmasını ve motor kalkışlarındaki voltaj çökmesini önlemek için).
-* HC-SR04 ($\times 3$), H2010 ($\times 2$), MPU6050 ve HC-05 modüllerinin **VCC** beslemeleri, doğrudan Arduino Uno'nun regüleli **+5V** pininden çoğaltılarak (breadboard üzerinden) dağıtılmalıdır.
+### 🔌 Arduino ve 5V Sensör Besleme Hattı (Yük Paylaşımı)
+* Seri bağlı $12\text{ V}$ pil hattından iki paralel hat çıkar: biri L298N **+12V Power** klemensine, diğeri doğrudan Arduino Uno **VIN** pinine gider.
+* L298N üzerindeki **5V Enable** jumper'ı takılı kalır; **L298N +5V çıkışı ile Arduino 5V pini birbirine KESİNLİKLE bağlanmaz** (regülatör çakışması olmaması için).
+* **Gürültüye hassas modüller (`MPU6050` ve `HC-05`)** doğrudan **Arduino Uno'nun 5V pinlerinden** beslenir.
+* **Ultrasonik sensörler (`HC-SR04` $\times 3$) ve `H2010` ($\times 2$)** L298N'in **+5V** çıkışından dağıtılan güç hattından beslenir.
 
 ### ⚠️ HC-05 RXD Pini İçin 3.3V Gerilim Bölücü (Zorunlu)
-* HC-05 modülünün **VCC** pini $5\text{ V}$ ile çalışır ancak veri alma pini olan **RXD** lojik olarak **$3.3\text{ V}$** seviyesindedir.
-* Arduino'nun $5\text{ V}$ çıkış veren TX pinini (`D12`) doğrudan HC-05 `RXD` pinine bağlamak modülü yakabilir. Araya **$1\text{ k}\Omega$ ve $2\text{ k}\Omega$** dirençlerle bir gerilim bölücü kurulmalıdır:
-  * Arduino D12 (TX) $\rightarrow$ $1\text{ k}\Omega$ Direnç $\rightarrow$ HC-05 RXD Pini $\rightarrow$ $2\text{ k}\Omega$ Direnç $\rightarrow$ GND
+* HC-05'in **VCC** pini $5\text{ V}$ ile çalışır ancak **RXD** veri girişi **$3.3\text{ V}$** lojik seviyesindedir.
+* Arduino'nun $5\text{ V}$ çıkış veren **D1 (TX)** pini doğrudan HC-05 `RXD`'ye bağlanmamalı, araya $1:2$ oranlı gerilim bölücü ($1\text{ k}\Omega$ / $2\text{ k}\Omega$ veya üç eş dirençle $R$ / $2R$) konmalıdır:
+  * Arduino `D1 (TX)` $\rightarrow$ $1\text{ k}\Omega$ $\rightarrow$ HC-05 `RXD` $\rightarrow$ $2\text{ k}\Omega$ $\rightarrow$ `GND`
 
 ### ⏚ Ortak Toprak (Common GND) Kuralı
-* Pil yuvasının eksi ($-$) kutbu, L298N üzerindeki **Power GND** klemensi, Arduino Uno'nun **GND** pinleri ve tüm sensörlerin **GND** bacakları birbirine bağlanarak ortaklanmalıdır. Ortak toprak yapılmazsa sensör sinyalleri okunamaz.
+* Pil grubunun eksi ($-$) kutbu, L298N **Power GND** klemensi, Arduino Uno **GND** pinleri ve tüm sensörlerin **GND** bacakları tek bir ortak toprak hattında birleştirilmelidir.
 
 ---
 
 ## 3. Ana Pin Bağlantı Tablosu (Donanım & Yazılım Referansı)
 
-Arduino Uno R3 üzerindeki donanımsal kesme (Interrupt), PWM ve I2C pinleri hiçbir çakışma olmayacak şekilde aşağıdaki gibi atanmıştır. 
-
-*(Not: Arduino Uno üzerindeki Analog `A0`-`A3` pinleri aynı zamanda `D14`-`D17` dijital giriş/çıkış pinleri olarak tam performansla çalışmaktadır).*
+Aşağıdaki tablo, [Config.h](maze-robot-control/src/Config.h) dosyasındaki güncel pin tanımlarıyla birebir uyumludur *(Analog `A0`–`A3` pinleri Arduino Uno'da dijital `D14`–`D17` olarak çalışır)*:
 
 | Bileşen | Modül Pini | Arduino Pini | Sinyal Tipi | Yazılım / Donanım Notu |
 | :--- | :--- | :--- | :--- | :--- |
-| **Sol H2010 Hız Sensörü** | `D0` | **D2** | Dijital Giriş (`INT0`) | Donanımsal kesme (Interrupt) pini |
-| **Sağ H2010 Hız Sensörü** | `D0` | **D3** | Dijital Giriş (`INT1`) | Donanımsal kesme (Interrupt) pini |
-| **L298N Motor Sürücü** | `ENA` | **H Jumper** | PWM Çıkışı (`Timer1`) | - |
-| **L298N Motor Sürücü** | `IN1` | **D9 (~)** | Dijital Çıkış | Sol Motor Yön 1 |
-| **L298N Motor Sürücü** | `IN2` | **D10 (~)** | Dijital Çıkış | Sol Motor Yön 2 |
-| **L298N Motor Sürücü** | `IN3` | **D5 (~)** | Dijital Çıkış | Sağ Motor Yön 1 |
-| **L298N Motor Sürücü** | `IN4` | **D6 (~)** | Dijital Çıkış | Sağ Motor Yön 2 |
-| **L298N Motor Sürücü** | `ENB` | **H Jumper** | PWM Çıkışı (`Timer1`) | - |
+| **Sol H2010 Hız Sensörü** | `D0` | **D2** | Dijital Giriş (`INT0`) | Fiziksel bağlı, mevcut yazılımda pasif |
+| **Sağ H2010 Hız Sensörü** | `D0` | **D3** | Dijital Giriş (`INT1`) | Fiziksel bağlı, mevcut yazılımda pasif |
+| **L298N Motor Sürücü** | `ENA` | **Jumper Takılı** | Sabit `5V` | 4-Pin PWM için kısa devre jumper takılı |
+| **L298N Motor Sürücü** | `IN1` | **D5 (~)** | PWM Çıkışı (`Timer0`) | Sol Motor Yön/Hız 1 (`LEFT_IN1`) |
+| **L298N Motor Sürücü** | `IN2` | **D6 (~)** | PWM Çıkışı (`Timer0`) | Sol Motor Yön/Hız 2 (`LEFT_IN2`) |
+| **L298N Motor Sürücü** | `IN3` | **D9 (~)** | PWM Çıkışı (`Timer1`) | Sağ Motor Yön/Hız 1 (`RIGHT_IN3`) |
+| **L298N Motor Sürücü** | `IN4` | **D10 (~)** | PWM Çıkışı (`Timer1`) | Sağ Motor Yön/Hız 2 (`RIGHT_IN4`) |
+| **L298N Motor Sürücü** | `ENB` | **Jumper Takılı** | Sabit `5V` | 4-Pin PWM için kısa devre jumper takılı |
 | **Ön HC-SR04 Mesafe** | `Trig` | **A0 (D14)** | Dijital Çıkış | $10\text{ }\mu\text{s}$ tetikleme darbesi |
 | **Ön HC-SR04 Mesafe** | `Echo` | **A1 (D15)** | Dijital Giriş | Yankı süresi okuma |
 | **Sol HC-SR04 Mesafe** | `Trig` | **A2 (D16)** | Dijital Çıkış | $10\text{ }\mu\text{s}$ tetikleme darbesi |
 | **Sol HC-SR04 Mesafe** | `Echo` | **A3 (D17)** | Dijital Giriş | Yankı süresi okuma |
 | **Sağ HC-SR04 Mesafe** | `Trig` | **D13** | Dijital Çıkış | $10\text{ }\mu\text{s}$ tetikleme darbesi |
 | **Sağ HC-SR04 Mesafe** | `Echo` | **D8** | Dijital Giriş | Yankı süresi okuma |
-| **MPU6050 Jiroskop** | `SDA` | **A4 (D18/SDA)** | I2C Veri Hattı | Donanımsal I2C SDA |
-| **MPU6050 Jiroskop** | `SCL` | **A5 (D19/SCL)** | I2C Saat Hattı | Donanımsal I2C SCL |
-| **HC-05 Bluetooth** | `TXD` | **-** | Yazılımsal UART RX | Doğrudan `D11` pinine bağlanır |
-| **HC-05 Bluetooth** | `RXD` | **D1 (TX)** | Yazılımsal UART TX | $1\text{ k}\Omega$ / $2\text{ k}\Omega$ gerilim bölücü ile bağlanır |
+| **MPU6050 Jiroskop** | `SDA` | **A4 (D18/SDA)** | I2C Veri Hattı | Donanımsal I2C (`100 kHz`) |
+| **MPU6050 Jiroskop** | `SCL` | **A5 (D19/SCL)** | I2C Saat Hattı | Donanımsal I2C (`100 kHz`) |
+| **HC-05 Bluetooth** | `TXD` | **D0 (RX)** *(opsiyonel)* | Donanımsal UART RX | Kod yüklerken geçici olarak çıkarılır |
+| **HC-05 Bluetooth** | `RXD` | **D1 (TX)** | Donanımsal UART TX | $1\text{ k}\Omega$ / $2\text{ k}\Omega$ gerilim bölücü ile (`9600 baud`) |
 
-> **Tasarım Notu:** Arduino'nun `D0 (RX)` ve `D1 (TX)` pinleri, bilgisayardan USB ile kod yüklerken kabloları sök-tak yapmamak ve Seri Port Ekranı (Serial Monitor) üzerinden hata ayıklayabilmek için özellikle boş bırakılmıştır. Ayrıca L298N üzerinde `ENA` ve `ENB` pinlerinin ikisi de `Timer1` (`D9` ve `D10`) üzerine atanarak iki motorun birebir aynı PWM frekansıyla ($490\text{ Hz}$) sürülmesi sağlanmıştır.
+> **Önemli Not (Donanımsal UART ve Kod Yükleme):** `SoftwareSerial` kütüphanesi Arduino Uno'da `Timer1` kesmelerini bozarak `D9/D10` PWM çıkışlarını kilitlediği için Bluetooth doğrudan donanımsal seri porta (`D0/D1`, **`9600 baud`**) bağlanmıştır. Bilgisayardan USB ile yeni kod yüklerken `D0` (ve garanti için `D1`) kablosunu geçici olarak söküp yükleme bitince geri takın.
 
 ---
 
 ## 4. Modül Bazlı Fiziksel Montaj ve Kablolama Rehberi
 
-Aracı şasi üzerine toplarken her modül için izlemeniz gereken bağlantı adımları aşağıdadır:
-
 ### 1. L298N ve Sarı TT Motor Bağlantıları
-* Sol sarı motorun iki kablosunu L298N üzerindeki **Output A** klemenslerine, sağ sarı motorun iki kablosunu ise **Output B** klemenslerine vidalayın. *(İlk testte ileri komutu verildiğinde tekerleklerden biri geriye dönerse, o motorun Output klemensindeki iki kablosunu kendi arasında yer değiştirin).*
-* L298N üzerindeki **A Enable (ENA)** ve **B Enable (ENB)** pinlerinin üzerindeki siyah kısa devre jumper'larını yerinden çıkarın. Bu pinleri dişi-erkek kablolarla sırasıyla Arduino **D9** ve **D10** pinlerine bağlayın.
-* **Logic Input** kısmındaki **IN1, IN2, IN3, IN4** pinlerini sırasıyla Arduino **D4, D5, D6, D7** pinlerine takın.
+* Sol sarı motorun kablolarını L298N **Output A** klemensine, sağ sarı motorun kablolarını **Output B** klemensine bağlayın (tekerleklerden biri ileri komutunda geri dönüyorsa o motorun klemensindeki iki kablosunu yer değiştirin).
+* L298N üzerindeki **ENA**, **ENB** ve **5V Enable** siyah jumper'larının **hepsini takılı bırakın**.
+* Logic Input pinlerini Arduino'nun PWM destekli pinlerine bağlayın: `IN1 -> D5`, `IN2 -> D6`, `IN3 -> D9`, `IN4 -> D10`.
 
 ### 2. H2010 Hız Sensörleri (Enkoderler)
-* Şasede motorların iç tarafındaki delikli enkoder diskleri H2010'un U şeklindeki yarığının tam ortasından, kenarlara sürtünmeden dönecek şekilde sensörleri sabitleyin.
-* 3 pinli konnektörde **1 numaralı pin (VCC)** Arduino $5\text{ V}$ hattına, **3 numaralı pin (GND)** ortak toprağa, ortadaki **2 numaralı pin (D0)** ise sol tekerlek için **D2**, sağ tekerlek için **D3** pinine bağlanır.
+* Delikli enkoder diskleri H2010'un U yarığının tam ortasından sürtünmeden dönecek şekilde sensörleri sabitleyin.
+* `VCC` -> L298N 5V hattı, `GND` -> ortak toprak, `D0` -> sol için `D2`, sağ için `D3`.
 
 ### 3. MPU6050 Jiroskop ve İvmeölçer
-* Modülü şasinin ağırlık merkezine mümkün olduğunca yakın, titreşimden izole ve üzerindeki X/Y eksen okları aracın ileri/yan eksenleriyle paralel olacak şekilde düz sabitleyin.
-* **VCC** pinini $5\text{ V}$ hattına (modül üzerinde dahili $3.3\text{ V}$ regülatörü bulunur), **GND** pinini toprağa, **SCL** pinini Arduino **A5 (D19)** pinine, **SDA** pinini ise Arduino **A4 (D18)** pinine bağlayın.
-* **XDA, XCL, AD0** ve **INT** pinlerini boş bırakın (`AD0` boş bırakıldığında cihazın varsayılan I2C adresi `0x68` olarak sabitlenir).
+* Modülü şasi tabanına tam yatay (zemine paralel), titreşimden uzak ve eksen okları aracın ileri/yan yönüne hizalı olacak şekilde sabitleyin (pin header'lar mutlaka lehimli olmalıdır).
+* `VCC` -> **Arduino 5V**, `GND` -> ortak toprak, `SDA` -> `A4`, `SCL` -> `A5`. `AD0`, `XDA`, `XCL`, `INT` boş bırakılır (varsayılan I2C adresi `0x68`, kod otomatik `0x68`/`0x69` tarar).
 
 ### 4. HC-SR04 Ultrasonik Mesafe Sensörleri (Ön, Sol, Sağ)
-* Üç sensörün de **VCC** pinlerini $5\text{ V}$ hattına, **GND** pinlerini ortak toprağa bağlayın.
-* **Ön Sensör:** `Trig` $\rightarrow$ **A0**, `Echo` $\rightarrow$ **A1**
-* **Sol Sensör:** `Trig` $\rightarrow$ **A2**, `Echo` $\rightarrow$ **A3**
-* **Sağ Sensör:** `Trig` $\rightarrow$ **D13**, `Echo` $\rightarrow$ **D8**
+* Üç sensörün `VCC` pinlerini L298N +5V hattına, `GND` pinlerini ortak toprağa bağlayın.
+* **Ön:** `Trig -> A0`, `Echo -> A1` | **Sol:** `Trig -> A2`, `Echo -> A3` | **Sağ:** `Trig -> D13`, `Echo -> D8`.
 
 ### 5. HC-05 Bluetooth Modülü (Datasheet Görselindeki Hataya Dikkat!)
-* **🚨 Görsel Uyarısı:** `HC-05 - Bluetooth.jpg` görselinin alt kısmındaki kırmızı oklar hatalı çizilmiştir (`Vcc` oku `RXD`'ye, `GND` oku `TXD`'ye gösterilmiştir). Bağlantıyı yaparken kırmızı okları değil, **mavi kartın (PCB) üzerindeki beyaz yazıları (`State`, `RXD`, `TXD`, `GND`, `VCC`, `Key`)** baz alın!
-* Kart üzerindeki **VCC** pinini $5\text{ V}$ hattına, **GND** pinini ortak toprağa bağlayın.
-* Kart üzerindeki **TXD** pinini doğrudan Arduino **D11** pinine bağlayın.
-* Arduino **D12** pininden çıkan sinyali $1\text{ k} \Omega$ – $2\text{ k} \Omega$ gerilim bölücüden geçirerek kart üzerindeki **RXD** pinine bağlayın; **STATE** ve **KEY** pinlerini boş bırakın.
+* **🚨 Görsel Uyarısı:** `HC-05 - Bluetooth.jpg` görselinin alt kısmındaki kırmızı oklar hatalı çizilmiştir. Bağlantıda mavi PCB üzerindeki beyaz yazıları (`STATE`, `RXD`, `TXD`, `GND`, `VCC`, `EN`) baz alın.
+* `VCC` -> **Arduino 5V**, `GND` -> ortak toprak.
+* `RXD` -> Arduino `D1 (TX)` pininden gelen gerilim bölücü çıkışı; `TXD` -> yalnızca komut alınacaksa Arduino `D0 (RX)` (telemetri için boş kalabilir). `STATE` ve `EN` boş bırakılır.
 
 ---
 
-## 5. Yazılım Ekibi için Kritik Uygulama ve Algoritma Notları
+## 5. Güncel Yazılım Mimarisi ve Algoritma Özeti
 
-Yazılım ekibinin kodu geliştirirken donanımla tam uyumlu çalışması için dikkat etmesi gereken teknik detaylar şunlardır:
+Firmware kodu [maze-robot-control/src/](maze-robot-control/src/) klasöründe 4 sade modülden oluşur:
 
-### 1. Enkoder Kesmeleri (Interrupts)
-H2010 sensörleri `attachInterrupt(digitalPinToInterrupt(2), solSayacISR, RISING)` ve `attachInterrupt(digitalPinToInterrupt(3), sagSayacISR, RISING)` fonksiyonlarıyla okunmalıdır. Kesme (ISR) fonksiyonları içindeki sayaç değişkenleri derleyici optimizasyonu nedeniyle veri kaybı yaşanmaması için mutlaka `volatile unsigned long` olarak tanımlanmalıdır.
+* **[Config.h](maze-robot-control/src/Config.h):** Tüm pin tanımları, PWM limitleri, dönüş açısı/toleransı ve zamanlama sabitleri.
+* **[Sensors.cpp](maze-robot-control/src/Sensors.cpp):** MPU6050 başlatma (`100 kHz` I2C, `3 ms` timeout, `44 Hz` DLPF, 200 örneklik bias kalibrasyonu), açı entegrasyonu (`updateHeading`) ve 3 ardışık timeout filtreli HC-SR04 okuma (`getDistance`).
+* **[Motors.cpp](maze-robot-control/src/Motors.cpp):** 4-pin PWM motor sürme (`setMotor`), düz gidiş için `millis()` tabanlı yumuşak kalkış (`drive`), dönüşler için doğrudan hız komutu (`setDirect`) ve `HIGH/HIGH` aktif fren (`activeBrake`).
+* **[main.cpp](maze-robot-control/src/main.cpp):** 5 durumlu bloklamayan (non-blocking) **State Machine** ve `9600 baud` telemetri:
+  1. `FORWARD`: MPU6050 ile $0^\circ$ yönünde düz sürüş (`CRUISE_PWM = 55`, `HEADING_KP = 1.0`, `MAX_CORR = 10`). Ön mesafe $2\text{ cm}-20\text{ cm}$ arasındaysa aktif fren yapıp `BRAKE_WAIT`'e geçer.
+  2. `BRAKE_WAIT`: $250\text{ ms}$ aktif frende bekler (araç durur, taze sağ/sol mesafe okunur) → `DECIDE`.
+  3. `DECIDE`: `rightDist > leftDist` ise sağa ($-90^\circ$), değilse sola ($+90^\circ$) dönüş hedefini seçer ve `heading` açısını sıfırlar → `TURNING`.
+  4. `TURNING`: Ultrasonik okumayı geçici olarak durdurup yüksek frekansta MPU6050 okuyarak oransal kontrollü tank dönüşü yapar (`TURN_TOLERANCE = 3.0°`, `TURN_TIMEOUT_MS = 2000 ms`, MPU koparsa `TURN_90_MS = 500 ms` yedek mod). Bitişte `TURN_END` özeti basıp `POST_TURN_WAIT`'e geçer.
+  5. `POST_TURN_WAIT`: $500\text{ ms}$ aktif frende beklerken eski mesafe hafızasını sıfırlayıp yeni yönün taze mesafelerini okur; yeni ön yön de kapalıysa ileri hareket etmeden tekrar `DECIDE`'a, açıksa yönü sıfırlayıp `FORWARD`'a geçer.
 
-### 2. Ultrasonik Sensör Zamanlaması (60ms Kuralı)
-HC-SR04 datasheet'inde belirtildiği üzere, bir sensörden gönderilen $40\text{ kHz}$ ses dalgasının yankısı sönümlenmeden diğer sensör tetiklenirse sensörler birbirinin yankısını (cross-talk) okur. Ön, sağ ve sol sensörler aynı anda değil, aralarında en az **$60\text{ ms}$** zaman bırakılarak sırayla okunmalıdır. Mesafe hesabı şu formülle yapılır:
+### 📡 Telemetri Aracını Çalıştırma (Ubuntu)
+Proje kök dizinindeki [telemetry-cli.py](telemetry-cli.py) aracı eşleştirilmiş `HC-05` modülünü otomatik bulur, `/dev/rfcomm0` portunu `9600 baud` ile açar, canlı veriyi ekrana basar ve `surus_verisi.csv` dosyasına kaydeder:
 
-$$\text{Mesafe (cm)} = \frac{\text{Süre (}\mu\text{s)}}{58}$$
+```bash
+python3 telemetry-cli.py
+```
 
-*Not:* `pulseIn()` fonksiyonuna mutlaka `30000` mikrosaniye ($\mu\text{s}$) timeout parametresi eklenmelidir ki sensör uzak boşluğa baktığında işlemci kilitlenmesin.
-
-### 3. Motor Yön ve Frenleme Mantığı (L298N Doğruluk Tablosu)
-* **İleri Sürüş:** Sol motor için `IN1 = HIGH`, `IN2 = LOW`; Sağ motor için `IN3 = HIGH`, `IN4 = LOW` ve hız kontrolü için `analogWrite(9, solPWM)`, `analogWrite(10, sagPWM)`.
-* **Kademeli Yavaşlama ve Aktif Fren:** Ön mesafe $25\text{ cm}$ altına indiğinde PWM değeri mesafeyle orantılı olarak düşürülmeli; durma noktasında (örneğin $10\text{ cm}$) motorların ataletle kaymasını önlemek için `IN1 = HIGH`, `IN2 = HIGH` (veya ikisi de `LOW`, `ENA`/`ENB = HIGH`) yapılarak elektronik aktif fren uygulanmalıdır.
-
-### 4. Düz Gidiş ve Dönüş Kontrolü (Sensör Füzyonu)
-* **Düz Gidiş:** Araç ilerlerken `hata = (solEnkoderSayisi - sagEnkoderSayisi) + (k_gyro * sapmaAcisi)` denklemiyle sağ ve sol motor PWM değerleri anlık dengelenmeli, ayrıca sağ ve sol HC-SR04 sensörleri koridor duvarlarını görüyorsa `(solMesafe - sagMesafe)` farkı da koridor merkezine hizalama için kullanılmalıdır.
-* **$90^\circ$ Dönüş:** Araç durduktan sonra MPU6050 Z ekseni jiroskop verisi ($\omega_z$) zamana göre entegre edilerek ($\theta \mathrel{+}= \omega_z \cdot \Delta t$) hedef açıya (motor durma ataleti hesaba katılarak örneğin $\pm 88^\circ$) ulaşılana kadar bir motor ileri, diğer motor geri (tank dönüşü) sürülmelidir.
+PlatformIO üzerinden USB ile derleme/yükleme ve seri monitör (`9600 baud`) için:
+```bash
+cd maze-robot-control
+pio run
+pio device monitor
+```

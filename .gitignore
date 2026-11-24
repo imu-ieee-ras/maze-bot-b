@@ -72,8 +72,11 @@ Testing/
 .pioenvs/
 .piolibdeps/
 
-# Python environments
+# Python environments & cache
 .venv/
+__pycache__/
+*.pyc
 
-# Local editor files
+# Local editor & office lock files
 .vscode/
+.~lock.*#

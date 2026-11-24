@@ -106,7 +106,7 @@ class TelemetryCLI:
             time.sleep(0.01)
 
     def process_telemetry(self, line):
-        if "Initialized" in line:
+        if "Initialized" in line or line.startswith("TURN_END"):
             print(f"\n[*] {line}\n")
             return
             
@@ -118,9 +118,14 @@ class TelemetryCLI:
                     key, value = part.split(':', 1)
                     data[key] = value
             
-            if all(k in data for k in ['F', 'L', 'R', 'Yaw', 'Ticks']):
+            if all(k in data for k in ['F', 'L', 'R', 'Yaw']):
+                state = data.get('State', '-')
+                ticks = data.get('Ticks', '0,0')
                 sys.stdout.write('\r')
-                display_str = f"F: {data['F']:>6} cm | L: {data['L']:>6} cm | R: {data['R']:>6} cm | Yaw: {data['Yaw']:>6}° | Ticks (L,R): {data['Ticks']:>10}"
+                if 'State' in data:
+                    display_str = f"F: {data['F']:>6} cm | L: {data['L']:>6} cm | R: {data['R']:>6} cm | Yaw: {data['Yaw']:>6}° | State: {state:<14}"
+                else:
+                    display_str = f"F: {data['F']:>6} cm | L: {data['L']:>6} cm | R: {data['R']:>6} cm | Yaw: {data['Yaw']:>6}° | Ticks (L,R): {ticks:>10}"
                 sys.stdout.write(display_str)
                 sys.stdout.flush()
                 
